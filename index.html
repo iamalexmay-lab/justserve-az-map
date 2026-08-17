@@ -569,23 +569,27 @@ const API_KEY='AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM';
 // Geocode cache - persists during session to avoid repeated API calls
 const geocodeCache = {};
 
-async function geocodeAddress(address) {
-  if(!address) return null;
-  if(geocodeCache[address]) return geocodeCache[address];
+// Use Maps JS API Geocoder (works with existing key, no extra API needed)
+let _geocoder = null;
+function getGeocoder(){ if(!_geocoder) _geocoder = new google.maps.Geocoder(); return _geocoder; }
+
+function geocodeAddress(address) {
+  if(!address || address.length < 10) return Promise.resolve(null);
+  if(geocodeCache[address]) return Promise.resolve(geocodeCache[address]);
   
-  try {
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`;
-    const r = await fetch(url);
-    const data = await r.json();
-    if(data.status === 'OK' && data.results[0]) {
-      const loc = data.results[0].geometry.location;
-      geocodeCache[address] = {lat: loc.lat, lng: loc.lng};
-      return geocodeCache[address];
-    }
-  } catch(e) {
-    console.warn('Geocode failed for:', address, e.message);
-  }
-  return null;
+  return new Promise(resolve => {
+    getGeocoder().geocode({address}, (results, status) => {
+      if(status === 'OK' && results[0]) {
+        const loc = results[0].geometry.location;
+        const coords = {lat: loc.lat(), lng: loc.lng()};
+        geocodeCache[address] = coords;
+        resolve(coords);
+      } else {
+        console.warn('Geocode failed:', address, status);
+        resolve(null);
+      }
+    });
+  });
 }
 
 function orgFromData(o, coords) {
@@ -641,12 +645,20 @@ function loadOrgsFromGitHub(){
       
       for(let i = 0; i < rawOrgs.length; i += BATCH) {
         const batch = rawOrgs.slice(i, i + BATCH);
+        // Wrap each geocode in safe catch so one failure doesn't kill the batch
         const geocoded = await Promise.all(
-          batch.map(o => o.address ? geocodeAddress(o.address) : Promise.resolve(null))
+          batch.map(o => o.address 
+            ? geocodeAddress(o.address).catch(()=>null) 
+            : Promise.resolve(null)
+          )
         );
         batch.forEach((o, j) => results.push(orgFromData(o, geocoded[j])));
         
-        // Update progress
+        // Render progressively — show orgs as they're geocoded
+        ORGS = [...results];
+        buildOrgList();
+        if(gmap) buildMarkers();
+        
         const done = Math.min(i + BATCH, rawOrgs.length);
         if(statusEl) statusEl.textContent = `Geocoding... ${done}/${rawOrgs.length}`;
       }
@@ -707,8 +719,10 @@ function initMap(){
     streetViewControl:false,fullscreenControl:false,
     zoomControl:false,
     gestureHandling:'greedy',
-    mapId:'DEMO_MAP_ID', // required for featureLayer (real city boundaries)
-    styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}],
+    styles:[
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels',stylers:[{visibility:'off'}]},
+    ],
   });
   gmap.addListener('click',()=>{if(popupOpen)closePopup();});
   buildCityPolygons();
@@ -886,34 +900,9 @@ let cityVisible = {Mesa:true, Chandler:true, Tempe:true, Gilbert:true};
 
 function buildCityPolygons(){
   if(!gmap) return;
-
-  // Try Google's featureLayer first (needs Maps JS API v3.55+ with AdvancedMarkers)
-  try {
-    cityFeatureLayer = gmap.getFeatureLayer('LOCALITY');
-    cityFeatureLayer.style = (options) => {
-      const placeId = options.feature.placeId;
-      // Find which city this feature is
-      for(const [name, pid] of Object.entries(CITY_PLACE_IDS)){
-        if(pid === placeId && cityVisible[name]){
-          const s = CITY_STYLES[name];
-          return {
-            strokeColor: s.stroke,
-            strokeOpacity: 0.7,
-            strokeWeight: 2.5,
-            fillColor: s.fill,
-            fillOpacity: 0.05,
-          };
-        }
-      }
-      return null; // don't style other localities
-    };
-    console.log('✅ Using Google real city boundaries via featureLayer');
-  } catch(e) {
-    console.warn('featureLayer not available, falling back to Data layer:', e.message);
-    // Fallback: use Google Maps Data layer with geocoded boundaries
-    buildCityPolygonsFallback();
-  }
-
+  // Use Google Maps Data layer with real city boundary GeoJSON from Geocoding
+  // This uses the Maps JS Geocoder to get actual city boundaries
+  buildCityPolygonsFallback();
   buildStakeBoundary();
 }
 
@@ -1194,10 +1183,19 @@ window.switchTab=function(id,btn){
 };
 
 // ── SEARCH ────────────────────────────────────────────────────
-document.getElementById('srch').addEventListener('input',e=>{
-  srch=e.target.value.toLowerCase().trim();
-  closePopup();buildOrgList();buildMarkers();
-});
+const srchInput = document.getElementById('srch');
+if(srchInput){
+  srchInput.addEventListener('input', e=>{
+    srch = e.target.value.toLowerCase().trim();
+    closePopup();
+    buildOrgList();
+    if(gmap) buildMarkers();
+  });
+  // Clear search on X / escape
+  srchInput.addEventListener('keydown', e=>{
+    if(e.key === 'Escape'){ srchInput.value=''; srch=''; closePopup(); buildOrgList(); if(gmap) buildMarkers(); }
+  });
+}
 
 // ── INIT ──────────────────────────────────────────────────────
 window.addEventListener('resize',()=>{
@@ -1205,6 +1203,6 @@ window.addEventListener('resize',()=>{
   if(gmap) buildMarkers(); // resize marker icons for new screen size
 });
 </script>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap&v=beta&map_ids=DEMO_MAP_ID"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap&libraries=places"></script>
 </body>
 </html>
