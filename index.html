@@ -555,7 +555,10 @@ const CATS=[
 const CITY_COLORS={Mesa:'#185FA5',Chandler:'#2E7D32',Tempe:'#BF360C',Gilbert:'#E65100'};
 
 // ── COORDINATE & DOMAIN LOOKUP ───────────────────────────────
-const COORD_MAP={"Arizonans for Children":[33.3942,-111.9261],"Paz de Cristo Community Center":[33.4136,-111.8213],"StepStone Family & Youth Services":[33.4152,-111.7742],"Casa De La Luz Hospice":[33.4225,-111.859],"Feed My Starving Children":[33.396,-111.7915],"Iglesia Cristiana El Buen Pastor":[33.405,-111.845],"Buddhist Tzu Chi Foundation":[33.3062,-111.8413],"Banner Desert Medical Center":[33.375,-111.792],"Kids Need To Read":[33.428,-111.838],"Native American Fatherhood & Families":[33.4192,-111.831],"Companion Hospice":[33.41,-111.832],"Positive Paths":[33.4,-111.85],"Valley Bloom":[33.2962,-111.8513],"Booker T. Washington Elementary":[33.43,-111.86],"Adams Elementary":[33.385,-111.84],"Guerrero Elementary":[33.392,-111.862],"Crismon Elementary":[33.434,-111.804],"United Food Bank":[33.39,-111.751],"A New Leaf":[33.478,-111.854],"HandsOn Greater Phoenix":[33.3872,-111.8132],"For Our City Chandler":[33.3062,-111.8213],"Chandler Gilbert Arc":[33.32,-111.89],"La Mesa Ministries":[33.405,-111.825],"About Care":[33.28,-111.8313],"Matthew's Crossing Food Bank":[33.3562,-111.87],"Child Crisis Arizona":[33.335,-111.92],"Chrysalis Shelter":[33.318,-111.872],"Semicolon Society":[33.325,-111.855],"Chandler Cultural Foundation":[33.3028,-111.8412],"Neighbors Who Care":[33.265,-111.84],"The Centers for Habilitation":[33.4015,-111.9318],"St. Vincent de Paul":[33.31,-111.86],"Feed the Children":[33.27,-111.855],"Big Brothers Big Sisters AZ":[33.405,-111.87],"Salvation Army East Valley":[33.33,-111.88],"RISE Services Inc.":[33.381,-111.754],"Arizona Faith & Families":[33.3162,-111.91],"FostAdopt Connections":[33.415,-111.835],"Boys & Girls Club East Valley":[33.35,-111.895],"AZCEND":[33.3062,-111.8913],"Assistance League East Valley":[33.3162,-111.8413],"Candelen":[33.2962,-111.86],"Catholic Charities AZ":[33.328,-111.876],"notMYkid":[33.308,-111.89],"Alex May":[33.3922,-111.8698]};
+// COORD_MAP removed — all coordinates now come from Google Geocoding API
+// based on real addresses in the Google Sheet. No estimates.
+const COORD_MAP = {}; // kept for reference only, not used for pin placement
+
 const DOMAIN_MAP={"Arizonans for Children":"arizonansforchildren.org","Paz de Cristo Community Center":"pazdecristoaz.org","StepStone Family & Youth Services":"stepstoneservices.org","Casa De La Luz Hospice":"casadelaluz.org","Feed My Starving Children":"fmsc.org","Buddhist Tzu Chi Foundation":"tw.tzuchi.us","Banner Desert Medical Center":"bannerhealth.com","Kids Need To Read":"kidsneedtoread.org","Native American Fatherhood & Families":"naffa.net","United Food Bank":"unitedfoodbank.org","A New Leaf":"turnanewleaf.org","HandsOn Greater Phoenix":"handsonphoenix.org","For Our City Chandler":"forourcitychandler.org","Chandler Gilbert Arc":"cgarc.org","Matthew's Crossing Food Bank":"matthewscrossing.org","Child Crisis Arizona":"childcrisisaz.org","Chrysalis Shelter":"chrysalisshelter.org","Semicolon Society":"semicolonsociety.org","Chandler Cultural Foundation":"chandlercenter.org","Neighbors Who Care":"neighborswhocare.org","The Centers for Habilitation":"the-centers.com","St. Vincent de Paul":"svdpaz.org","Feed the Children":"feedthechildren.org","Big Brothers Big Sisters AZ":"bbbsaz.org","Salvation Army East Valley":"salvationarmyusa.org","RISE Services Inc.":"riseservicesincaz.org","Boys & Girls Club East Valley":"bgcaz.org","AZCEND":"azcend.org","Candelen":"candelen.org","Catholic Charities AZ":"catholiccharitiesaz.org","notMYkid":"notmykid.org"};
 
 // ── DATA STATE ───────────────────────────────────────────────
@@ -588,28 +591,37 @@ async function geocodeAddress(address) {
 function orgFromData(o, coords) {
   const domain = DOMAIN_MAP[o.name] || (o.website ? o.website.replace(/^https?:\/\//, '').split('/')[0] : null);
   const nextArr = o.nextSteps ? o.nextSteps.split(/[.\n]/).map(s => s.trim()).filter(s => s.length > 10) : [];
+  
+  // Only place a pin if we have a real geocoded address.
+  // No guessing — orgs without verified coordinates are listed 
+  // in the sidebar but not shown on the map until an address is added.
+  const hasExactCoords = !!coords;
+  const lat = hasExactCoords ? coords.lat : null;
+  const lng = hasExactCoords ? coords.lng : null;
+
   return {
-    name:    o.name,
-    city:    o.city,
-    lat:     coords ? coords.lat : (COORD_MAP[o.name] ? COORD_MAP[o.name][0] : 33.38),
-    lng:     coords ? coords.lng : (COORD_MAP[o.name] ? COORD_MAP[o.name][1] : -111.86),
-    geocoded: !!coords,  // flag so we know if this was exact or estimated
-    cat:     catIdFromLabel(o.category),
-    status:  o.status === 'Active' ? 'active' : o.status === 'Target' ? 'target' : 'inactive',
-    proj:    Number(o.projects) || 0,
-    size:    o.size || 'Medium',
-    score:   Number(o.score) || 0,
-    admin:   o.adminName || null,
-    added:   o.dateAdded || null,
-    pri:     o.priority || 'Medium',
-    phone:   o.phone || null,
-    email:   o.email || null,
-    address: o.address || null,
+    name:      o.name,
+    city:      o.city,
+    lat,
+    lng,
+    geocoded:  hasExactCoords,
+    mappable:  hasExactCoords, // only true if we have a verified location
+    cat:       catIdFromLabel(o.category),
+    status:    o.status === 'Active' ? 'active' : o.status === 'Target' ? 'target' : 'inactive',
+    proj:      Number(o.projects) || 0,
+    size:      o.size || 'Medium',
+    score:     Number(o.score) || 0,
+    admin:     o.adminName || null,
+    added:     o.dateAdded || null,
+    pri:       o.priority || 'Medium',
+    phone:     o.phone || null,
+    email:     o.email || null,
+    address:   o.address || null,
     domain,
-    url:     o.website ? 'https://' + o.website.replace(/^https?:\/\//, '') : null,
-    faith:   o.faith || null,
-    note:    o.notes || '',
-    next:    nextArr,
+    url:       o.website ? 'https://' + o.website.replace(/^https?:\/\//, '') : null,
+    faith:     o.faith || null,
+    note:      o.notes || '',
+    next:      nextArr,
   };
 }
 
@@ -652,7 +664,8 @@ function loadOrgsFromGitHub(){
       if(gmap) buildMarkers();
 
       if(statusEl) {
-        statusEl.textContent = `${ORGS.length} orgs · ${exactCount} pinned exactly · ${new Date(data.lastUpdated).toLocaleDateString()}`;
+        const unmapped = ORGS.length - exactCount;
+        statusEl.textContent = `${ORGS.length} orgs · ${exactCount} on map · ${unmapped>0?unmapped+' need address':'all located'}`;
         statusEl.style.color = 'var(--brand)';
       }
     })
@@ -724,6 +737,7 @@ function makeMarkerIcon(org){
 function buildMarkers(){
   markers.forEach(m=>m.setMap(null));markers=[];
   ORGS.filter(isVis).forEach(o=>{
+    if(!o.mappable) return; // skip orgs without verified addresses
     const m=new google.maps.Marker({position:{lat:o.lat,lng:o.lng},map:gmap,title:o.name,icon:makeMarkerIcon(o)});
     m.addListener('click',()=>openPopup(o,m));
     markers.push(m);
@@ -744,7 +758,7 @@ function openPopup(o,marker){
   document.getElementById('ppName').textContent=o.name;
   const geoTag = o.geocoded 
     ? '<span style="color:#1B5E4F;font-size:10px;margin-left:6px">📍 Exact location</span>'
-    : '<span style="color:#C68000;font-size:10px;margin-left:6px">⚠ Approximate location</span>';
+    : '<span style="color:#C75000;font-size:10px;margin-left:6px">⚠ Add address to Google Sheet to place on map</span>';
   document.getElementById('ppCity').innerHTML=`📍 ${o.city}, AZ ${geoTag}`;
   const sBg=o.status==='active'?'#E8F5E9':'#FFF8E1';
   const sCol=o.status==='active'?'#1B5E20':'#C75000';
@@ -1063,20 +1077,40 @@ function buildOrgList(){
   document.getElementById('orgList').innerHTML=vis.map(o=>{
     const col=catColor(o.cat);
     const tag=o.status==='active'?'<span class="tag tag-active">✓</span>':'<span class="tag tag-target">⊕</span>';
-    return `<div class="org-item" onclick="flyToOrg('${(o.name||"Unknown").replace(/'/g,"\'")}')">
+    return `<div class="org-item" style="${noLocStyle}" onclick="flyToOrg('${(o.name||"Unknown").replace(/'/g,"\'")}')">
       <div class="cat-dot" style="background:${col};margin-top:5px;flex-shrink:0"></div>
       <div><div class="org-name">${o.name}</div>
-      <div class="org-meta">${tag}<span>${o.city}</span><span style="color:${catColor(o.cat)}">${catLabel(o.cat)}</span>${o.proj>0?`<span>${o.proj}p</span>`:''}</div></div>
+      <div class="org-meta">${tag}${noLocTag}<span>${o.city}</span><span style="color:${catColor(o.cat)}">${catLabel(o.cat)}</span>${o.proj>0?`<span>${o.proj}p</span>`:''}</div></div>
     </div>`;
   }).join('');
 }
 window.flyToOrg=function(name){
   const o=ORGS.find(x=>x.name===name);if(!o)return;
+  if(!o.mappable){
+    // Show popup without flying — org has no verified location
+    openPopupNoMap(o);
+    closeSidebar();
+    return;
+  }
   gmap.panTo({lat:o.lat,lng:o.lng});
   gmap.setZoom(16);
   setTimeout(()=>openPopup(o,null),400);
   closeSidebar();
 };
+
+// Show popup centered on screen for orgs with no map location
+function openPopupNoMap(o){
+  openPopup(o, null);
+  // Position popup center-screen since there's no pin to anchor to
+  const popup=document.getElementById('popup');
+  const isMobile=window.innerWidth<=768;
+  if(!isMobile){
+    const mc=document.getElementById('gmap').getBoundingClientRect();
+    popup.style.left=(mc.width/2 - 170)+'px';
+    popup.style.top='40px';
+    popup.style.width='340px';
+  }
+}
 
 function updateStats(){
   document.getElementById('hA').textContent=ORGS.filter(o=>o.status==='active').length;
