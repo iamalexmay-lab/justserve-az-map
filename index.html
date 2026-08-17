@@ -751,14 +751,17 @@ async function initMap(){
 
   gmap.addListener('click', ()=>{ if(popupOpen) closePopup(); });
   
-  // Initialize geocoder
+  // Initialize geocoder FIRST
   _geocoder = new google.maps.Geocoder();
   
-  // Build city boundaries using FeatureLayer (real Google data)
-  buildCityBoundaries();
+  // Build stake boundary immediately (no geocoding needed)
+  buildStakeBoundary();
   
-  // Load org data
-  setTimeout(loadOrgsFromGitHub, 300);
+  // Build city boundaries AFTER geocoder ready (needs geocoder for bounds)
+  setTimeout(buildCityBoundaries, 100);
+  
+  // Load org data after geocoder ready
+  setTimeout(loadOrgsFromGitHub, 400);
 }
 
 function catColor(id){return(CATS.find(c=>c.id===id)||{color:'#555'}).color;}
@@ -975,7 +978,7 @@ function buildCityBoundaries(){
   
   // Always use geocoded polygon fallback — works on ALL browsers regardless of WebGL
   // FeatureLayer requires WebGL/Vector mode which isn't universally supported
-  buildCityPolygonsFallback();
+  buildCityPolygonsFallback(); // uses geocoder which is now ready
   
   // Also try FeatureLayer for browsers that support it (adds real boundaries on top)
   try {
