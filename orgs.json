@@ -967,6 +967,29 @@
       "lastUpdated": ""
     },
     {
+      "id": 43,
+      "name": "Alex May",
+      "status": "",
+      "category": "",
+      "city": "",
+      "address": "",
+      "phone": "",
+      "email": "",
+      "website": "",
+      "justserveUrl": "",
+      "adminName": "",
+      "adminEmail": "",
+      "dateAdded": "",
+      "projects": 0,
+      "size": "",
+      "priority": "",
+      "faith": "",
+      "score": 0,
+      "notes": "",
+      "nextSteps": "",
+      "lastUpdated": ""
+    },
+    {
       "id": 44,
       "name": "notMYkid",
       "status": "Target",
@@ -990,8 +1013,8 @@
       "lastUpdated": ""
     }
   ],
-  "lastUpdated": "2026-08-17T01:57:22.572Z",
-  "totalOrgs": 43,
+  "lastUpdated": "2026-08-17T03:54:07.516Z",
+  "totalOrgs": 44,
   "activeCount": 30,
   "targetCount": 13,
   "fosterCount": 5
