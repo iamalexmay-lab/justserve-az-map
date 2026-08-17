@@ -970,8 +970,8 @@
       "id": 43,
       "name": "Alex May",
       "status": "Target",
-      "category": "",
-      "city": "",
+      "category": "Multi-service",
+      "city": "Mesa",
       "address": "",
       "phone": "",
       "email": "",
@@ -1013,7 +1013,7 @@
       "lastUpdated": ""
     }
   ],
-  "lastUpdated": "2026-08-17T03:54:09.736Z",
+  "lastUpdated": "2026-08-17T03:54:16.420Z",
   "totalOrgs": 44,
   "activeCount": 30,
   "targetCount": 14,
