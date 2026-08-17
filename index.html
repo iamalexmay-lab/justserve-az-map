@@ -434,15 +434,6 @@ header{
         <div id="catList"></div>
       </div>
       <!-- City toggles inside sidebar on mobile -->
-      <div class="sb-section" id="cityToggleMobile">
-        <div class="sb-label">City Boundaries</div>
-        <div>
-          <div class="city-row-ctrl"><input type="checkbox" id="cMesa2" checked onchange="toggleCity('Mesa',this)"><label for="cMesa2" style="color:#185FA5">Mesa</label></div>
-          <div class="city-row-ctrl"><input type="checkbox" id="cChandler2" checked onchange="toggleCity('Chandler',this)"><label for="cChandler2" style="color:#2E7D32">Chandler</label></div>
-          <div class="city-row-ctrl"><input type="checkbox" id="cTempe2" checked onchange="toggleCity('Tempe',this)"><label for="cTempe2" style="color:#BF360C">Tempe</label></div>
-          <div class="city-row-ctrl"><input type="checkbox" id="cGilbert2" checked onchange="toggleCity('Gilbert',this)"><label for="cGilbert2" style="color:#E65100">Gilbert</label></div>
-        </div>
-      </div>
       <div class="org-scroll">
         <div class="result-info">Orgs (<span id="oCount">…</span>)</div>
         <div class="load-status" id="loadStatus">Loading live data…</div>
@@ -457,14 +448,7 @@ header{
       <!-- Mobile hamburger -->
       <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" aria-label="Open filters">☰</button>
 
-      <!-- Desktop city toggles -->
-      <div class="city-toggle">
-        <div class="city-toggle-title">City Boundaries</div>
-        <div class="city-row-ctrl"><input type="checkbox" id="cMesa" checked onchange="toggleCity('Mesa',this)"><label for="cMesa" style="color:#185FA5">Mesa</label></div>
-        <div class="city-row-ctrl"><input type="checkbox" id="cChandler" checked onchange="toggleCity('Chandler',this)"><label for="cChandler" style="color:#2E7D32">Chandler</label></div>
-        <div class="city-row-ctrl"><input type="checkbox" id="cTempe" checked onchange="toggleCity('Tempe',this)"><label for="cTempe" style="color:#BF360C">Tempe</label></div>
-        <div class="city-row-ctrl"><input type="checkbox" id="cGilbert" checked onchange="toggleCity('Gilbert',this)"><label for="cGilbert" style="color:#E65100">Gilbert</label></div>
-      </div>
+      <!-- City boundary overlay removed -->
 
       <!-- Zoom controls -->
       <div class="zoom-ctrl">
@@ -754,14 +738,8 @@ async function initMap(){
   // Initialize geocoder FIRST
   _geocoder = new google.maps.Geocoder();
   
-  // Build stake boundary immediately (no geocoding needed)
-  buildStakeBoundary();
-  
-  // Build city boundaries AFTER geocoder ready (needs geocoder for bounds)
-  setTimeout(buildCityBoundaries, 100);
-  
-  // Load org data after geocoder ready
-  setTimeout(loadOrgsFromGitHub, 400);
+  // Load org data
+  setTimeout(loadOrgsFromGitHub, 300);
 }
 
 function catColor(id){return(CATS.find(c=>c.id===id)||{color:'#555'}).color;}
@@ -956,128 +934,14 @@ window.toggleMobileLegend=function(){
 
 // ── CITY BOUNDARIES — Google real boundaries via featureLayer ────
 // Uses Google's actual city boundary data, not rectangles
-const CITY_STYLES = {
-  Mesa:     {stroke:'#185FA5', fill:'#185FA5'},
-  Chandler: {stroke:'#2E7D32', fill:'#2E7D32'},
-  Tempe:    {stroke:'#BF360C', fill:'#BF360C'},
-  Gilbert:  {stroke:'#E65100', fill:'#E65100'},
-};
-const CITY_PLACE_IDS = {
-  Mesa:     'ChIJZcuTub-x1oYR5gwFGBxnADk',
-  Chandler: 'ChIJR3_ODNkIK4cRbn5GkDJ_e3A',
-  Tempe:    'ChIJV3worPwIK4cRB2YWDCcvZR0',
-  Gilbert:  'ChIJhSEsaBUQK4cR2j_kSIkGY5k',
-};
 
 let cityFeatureLayer = null;
 let activeCityStyles = {};  // placeId -> style config
-let cityVisible = {Mesa:true, Chandler:true, Tempe:true, Gilbert:true};
 
-function buildCityBoundaries(){
-  if(!gmap) return;
-  
-  // Always use geocoded polygon fallback — works on ALL browsers regardless of WebGL
-  // FeatureLayer requires WebGL/Vector mode which isn't universally supported
-  buildCityPolygonsFallback(); // uses geocoder which is now ready
-  
-  // Also try FeatureLayer for browsers that support it (adds real boundaries on top)
-  try {
-    if(google.maps.FeatureType && google.maps.FeatureType.LOCALITY) {
-      const localityLayer = gmap.getFeatureLayer(google.maps.FeatureType.LOCALITY);
-      const CITY_STYLES = {
-        'Mesa':     {stroke:'#185FA5', fill:'#185FA5'},
-        'Chandler': {stroke:'#2E7D32', fill:'#2E7D32'},
-        'Tempe':    {stroke:'#BF360C', fill:'#BF360C'},
-        'Gilbert':  {stroke:'#E65100', fill:'#E65100'},
-      };
-      const CITY_PLACE_IDS = {
-        'ChIJZcuTub-x1oYR5gwFGBxnADk': 'Mesa',
-        'ChIJR3_ODNkIK4cRbn5GkDJ_e3A': 'Chandler',
-        'ChIJV3worPwIK4cRB2YWDCcvZR0': 'Tempe',
-        'ChIJhSEsaBUQK4cR2j_kSIkGY5k': 'Gilbert',
-      };
-      localityLayer.style = (options) => {
-        const cityName = CITY_PLACE_IDS[options.feature.placeId];
-        if(cityName && cityVisible[cityName]) {
-          const s = CITY_STYLES[cityName];
-          return { strokeColor:s.stroke, strokeOpacity:0.8, strokeWeight:2.5,
-                   fillColor:s.fill, fillOpacity:0.05 };
-        }
-        return null;
-      };
-      window._localityLayer = localityLayer;
-      console.log('✅ FeatureLayer also active (Vector mode supported)');
-    }
-  } catch(e) {
-    console.log('FeatureLayer not available (WebGL/Raster mode) — using polygon outlines');
-  }
-  
-  buildStakeBoundary();
-}
 
-function buildCityPolygonsFallback(){
-  // Use Google Maps Geocoding API with geometry to get actual city boundaries
-  // The 'geometry' field from geocoding includes the precise lat/lng bounds
-  // We request the place boundary using place_id for maximum accuracy
-  
-  const cityConfigs = [
-    {name:'Mesa, AZ',     display:'Mesa',     color:'#185FA5'},
-    {name:'Chandler, AZ', display:'Chandler', color:'#2E7D32'},
-    {name:'Tempe, AZ',    display:'Tempe',    color:'#BF360C'},
-    {name:'Gilbert, AZ',  display:'Gilbert',  color:'#E65100'},
-  ];
 
-  window.cityPolygonsData = {};
-  const geocoder = getGeocoder();
-  if(!geocoder) { console.warn('Geocoder not ready'); return; }
 
-  cityConfigs.forEach(c => {
-    geocoder.geocode(
-      {address: c.name, componentRestrictions: {country: 'US', administrativeArea: 'AZ'}},
-      (results, status) => {
-        if(status !== 'OK' || !results[0]) {
-          console.warn('City geocode failed:', c.name, status);
-          return;
-        }
-        
-        const geo = results[0].geometry;
-        const vp = geo.viewport;   // city viewport
-        const sw = vp.getSouthWest();
-        const ne = vp.getNorthEast();
-        
-        console.log(c.display + ' real bounds:', 
-                    sw.lat().toFixed(4), sw.lng().toFixed(4),
-                    '→', ne.lat().toFixed(4), ne.lng().toFixed(4));
 
-        // Draw rectangle from actual Google geocode viewport
-        const bounds = new google.maps.LatLngBounds(sw, ne);
-        const rect = new google.maps.Rectangle({
-          bounds: bounds,
-          map: cityVisible[c.display] ? gmap : null,
-          strokeColor: c.color,
-          strokeOpacity: 0.75,
-          strokeWeight: 2.5,
-          fillColor: c.color,
-          fillOpacity: 0.04,
-          zIndex: 1,
-        });
-
-        window.cityPolygonsData[c.display] = rect;
-
-        // Add city name label at center
-        const center = bounds.getCenter();
-        const labelEl = document.createElement('div');
-        labelEl.style.cssText = 'color:' + c.color + ';font-family:Arial,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;opacity:0.6;pointer-events:none;text-shadow:1px 1px 0 white,-1px -1px 0 white;';
-        labelEl.textContent = c.display.toUpperCase();
-        const AME = window._AdvancedMarkerElement;
-        if(AME) {
-          new AME({position: center, map: cityVisible[c.display] ? gmap : null,
-                   content: labelEl, zIndex: 2});
-        }
-      }
-    );
-  });
-}
 
 // ── ALMA STAKE BOUNDARY ───────────────────────────────────────
 // Approximate boundary based on Church Ward Directory map
@@ -1133,26 +997,7 @@ window.toggleStake=function(cb){
   });
 };
 
-window.toggleCity=function(name,cb){
-  const show = cb.checked;
-  cityVisible[name] = show;
-  // Toggle rectangle/polygon
-  if(window.cityPolygonsData && window.cityPolygonsData[name]){
-    window.cityPolygonsData[name].setMap(show ? gmap : null);
-  }
-  // Refresh FeatureLayer if available
-  if(window._localityLayer){
-    const s = window._localityLayer.style;
-    window._localityLayer.style = null;
-    window._localityLayer.style = s;
-  }
-  // Sync all matching checkboxes
-  document.querySelectorAll('input[type=checkbox]').forEach(el=>{
-    if(el.id && el.id.toLowerCase().includes(name.toLowerCase())){
-      el.checked = show;
-    }
-  });
-};
+
 
 // ── FILTERS ──────────────────────────────────────────────────
 let activeStatus='all',activeCats=new Set(CATS.map(c=>c.id)),srch='',selIdx=-1;
