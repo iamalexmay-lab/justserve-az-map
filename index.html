@@ -433,7 +433,21 @@ header{
         <div class="sb-label">Category</div>
         <div id="catList"></div>
       </div>
-      <!-- City toggles inside sidebar on mobile -->
+      <!-- City & Stake boundary toggles -->
+      <div class="sb-section">
+        <div class="sb-label">City Boundaries</div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cMesa" checked onchange="toggleCityBoundary('Mesa',this)"><label for="cMesa" style="color:#185FA5">Mesa</label></div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cChandler" checked onchange="toggleCityBoundary('Chandler',this)"><label for="cChandler" style="color:#2E7D32">Chandler</label></div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cTempe" checked onchange="toggleCityBoundary('Tempe',this)"><label for="cTempe" style="color:#BF360C">Tempe</label></div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cGilbert" checked onchange="toggleCityBoundary('Gilbert',this)"><label for="cGilbert" style="color:#E65100">Gilbert</label></div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Stake Boundary</div>
+        <div class="city-row-ctrl">
+          <input type="checkbox" id="cStake" checked onchange="toggleStake(this)">
+          <label for="cStake" style="color:#C8960C;font-weight:700">✦ Alma Stake</label>
+        </div>
+      </div>
       <div class="org-scroll">
         <div class="result-info">Orgs (<span id="oCount">…</span>)</div>
         <div class="load-status" id="loadStatus">Loading live data…</div>
@@ -738,6 +752,8 @@ async function initMap(){
   // Initialize geocoder FIRST
   _geocoder = new google.maps.Geocoder();
   
+  // Build real city boundaries from OpenStreetMap
+  setTimeout(buildCityBoundaries, 200);
   // Load org data
   setTimeout(loadOrgsFromGitHub, 300);
 }
@@ -986,6 +1002,11 @@ function buildStakeBoundary(){
     });
   }
 }
+window.toggleCityBoundary=function(name,cb){
+  const poly = window.cityBoundaryPolygons && window.cityBoundaryPolygons[name];
+  if(poly) poly.setMap(cb.checked ? gmap : null);
+};
+
 window.toggleStake=function(cb){
   const show = cb.checked;
   if(window.stakePolygon) window.stakePolygon.setVisible(show);
@@ -998,6 +1019,53 @@ window.toggleStake=function(cb){
 };
 
 
+
+// ── CITY BOUNDARIES — Real polygon from OpenStreetMap (same data as Google) ──
+// Uses Nominatim API to fetch actual city boundary GeoJSON
+const CITY_CONFIGS = [
+  {name:'Mesa',     query:'Mesa, Arizona, US',     color:'#185FA5'},
+  {name:'Chandler', query:'Chandler, Arizona, US', color:'#2E7D32'},
+  {name:'Tempe',    query:'Tempe, Arizona, US',    color:'#BF360C'},
+  {name:'Gilbert',  query:'Gilbert, Arizona, US',  color:'#E65100'},
+];
+window.cityBoundaryPolygons = {};
+
+function buildCityBoundaries(){
+  if(!gmap) return;
+  CITY_CONFIGS.forEach(c => {
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(c.query)}&format=json&polygon_geojson=1&limit=1`,
+          {headers:{'Accept-Language':'en','User-Agent':'JustServeAZ/1.0'}})
+      .then(r => r.json())
+      .then(data => {
+        if(!data[0]?.geojson) return;
+        const geo = data[0].geojson;
+        // Convert GeoJSON coords [lng,lat] to Google LatLng {lat,lng}
+        const toLatLng = ring => ring.map(p => ({lat:p[1], lng:p[0]}));
+        let paths;
+        if(geo.type === 'Polygon'){
+          paths = [toLatLng(geo.coordinates[0])];
+        } else if(geo.type === 'MultiPolygon'){
+          // Use the largest polygon (main city body)
+          const sorted = geo.coordinates.slice().sort((a,b) => b[0].length - a[0].length);
+          paths = [toLatLng(sorted[0][0])];
+        }
+        if(!paths) return;
+        const poly = new google.maps.Polygon({
+          paths,
+          map: gmap,
+          strokeColor: c.color,
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: c.color,
+          fillOpacity: 0.04,
+          zIndex: 1,
+        });
+        window.cityBoundaryPolygons[c.name] = poly;
+        console.log('✅ Real boundary drawn for', c.name, '—', paths[0].length, 'points');
+      })
+      .catch(e => console.warn('City boundary fetch failed for', c.name, e.message));
+  });
+}
 
 // ── FILTERS ──────────────────────────────────────────────────
 let activeStatus='all',activeCats=new Set(CATS.map(c=>c.id)),srch='',selIdx=-1;
