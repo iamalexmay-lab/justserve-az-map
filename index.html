@@ -883,40 +883,13 @@ function buildCityPolygonsFallback(){
 // SE: Warner & Country Club area, SW: Warner & 101
 // NOTE: Update with exact coordinates from stake clerk when available
 function buildStakeBoundary(){
+  // Exact Alma Stake boundary — 4 GPS coordinates provided by stake leadership
+  // Converted from DMS: 33°24'53.6"N 111°53'26.9"W  etc.
   const stakeCoords = [
-    // Northwest — Broadway Rd & 101 freeway
-    {lat:33.4082, lng:-111.9004},
-    // North edge follows Broadway Rd east
-    {lat:33.4082, lng:-111.8820},
-    // Jog north slightly (ward boundary notch around Alma Gardens)
-    {lat:33.4130, lng:-111.8820},
-    {lat:33.4130, lng:-111.8650},
-    // Back down to Broadway level heading east
-    {lat:33.4082, lng:-111.8650},
-    {lat:33.4082, lng:-111.8480},
-    // Step south — follows Southern Ave area
-    {lat:33.3950, lng:-111.8480},
-    {lat:33.3950, lng:-111.8350},
-    // Northeast corner area — Country Club Dr
-    {lat:33.4000, lng:-111.8350},
-    {lat:33.4000, lng:-111.8180},
-    // East edge going south along ~Country Club/Dobson
-    {lat:33.3800, lng:-111.8180},
-    {lat:33.3800, lng:-111.8050},
-    {lat:33.3600, lng:-111.8050},
-    // Southeast — down toward Warner Rd
-    {lat:33.3600, lng:-111.8250},
-    {lat:33.3530, lng:-111.8250},
-    // South edge — Warner Rd going west
-    {lat:33.3530, lng:-111.8500},
-    {lat:33.3530, lng:-111.8700},
-    {lat:33.3530, lng:-111.8900},
-    // Southwest corner — Warner & 101
-    {lat:33.3530, lng:-111.9004},
-    // West edge — 101 freeway going north back to start
-    {lat:33.3700, lng:-111.9004},
-    {lat:33.3900, lng:-111.9004},
-    {lat:33.4082, lng:-111.9004},
+    {lat: 33.414889, lng: -111.890806}, // NW — 33°24'53.6"N 111°53'26.9"W
+    {lat: 33.415417, lng: -111.840306}, // NE — 33°24'55.5"N 111°50'25.1"W
+    {lat: 33.335278, lng: -111.842028}, // SE — 33°20'07.0"N 111°50'31.3"W
+    {lat: 33.334778, lng: -111.892361}, // SW — 33°20'05.2"N 111°53'32.5"W
   ];
 
   window.stakePolygon = new google.maps.Polygon({
@@ -932,7 +905,7 @@ function buildStakeBoundary(){
 
   // Stake label
   window.stakeLabel = new google.maps.Marker({
-    position: {lat: 33.382, lng: -111.863},
+    position: {lat: 33.375090, lng: -111.866375}, // center of exact stake boundary
     map: gmap,
     icon: {
       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
