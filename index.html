@@ -562,38 +562,103 @@ const DOMAIN_MAP={"Arizonans for Children":"arizonansforchildren.org","Paz de Cr
 let ORGS=[];
 const API_KEY='AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM';
 
-// ── LIVE DATA LOADER ─────────────────────────────────────────
+// ── LIVE DATA LOADER WITH GEOCODING ──────────────────────────
+// Geocode cache - persists during session to avoid repeated API calls
+const geocodeCache = {};
+
+async function geocodeAddress(address) {
+  if(!address) return null;
+  if(geocodeCache[address]) return geocodeCache[address];
+  
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    if(data.status === 'OK' && data.results[0]) {
+      const loc = data.results[0].geometry.location;
+      geocodeCache[address] = {lat: loc.lat, lng: loc.lng};
+      return geocodeCache[address];
+    }
+  } catch(e) {
+    console.warn('Geocode failed for:', address, e.message);
+  }
+  return null;
+}
+
+function orgFromData(o, coords) {
+  const domain = DOMAIN_MAP[o.name] || (o.website ? o.website.replace(/^https?:\/\//, '').split('/')[0] : null);
+  const nextArr = o.nextSteps ? o.nextSteps.split(/[.\n]/).map(s => s.trim()).filter(s => s.length > 10) : [];
+  return {
+    name:    o.name,
+    city:    o.city,
+    lat:     coords ? coords.lat : (COORD_MAP[o.name] ? COORD_MAP[o.name][0] : 33.38),
+    lng:     coords ? coords.lng : (COORD_MAP[o.name] ? COORD_MAP[o.name][1] : -111.86),
+    geocoded: !!coords,  // flag so we know if this was exact or estimated
+    cat:     catIdFromLabel(o.category),
+    status:  o.status === 'Active' ? 'active' : o.status === 'Target' ? 'target' : 'inactive',
+    proj:    Number(o.projects) || 0,
+    size:    o.size || 'Medium',
+    score:   Number(o.score) || 0,
+    admin:   o.adminName || null,
+    added:   o.dateAdded || null,
+    pri:     o.priority || 'Medium',
+    phone:   o.phone || null,
+    email:   o.email || null,
+    address: o.address || null,
+    domain,
+    url:     o.website ? 'https://' + o.website.replace(/^https?:\/\//, '') : null,
+    faith:   o.faith || null,
+    note:    o.notes || '',
+    next:    nextArr,
+  };
+}
+
 function loadOrgsFromGitHub(){
-  const url='https://raw.githubusercontent.com/iamalexmay-lab/justserve-az-map/main/orgs.json?cache='+Date.now();
+  const url = 'https://raw.githubusercontent.com/iamalexmay-lab/justserve-az-map/main/orgs.json?cache=' + Date.now();
+  const statusEl = document.getElementById('loadStatus');
+
   fetch(url)
-    .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-    .then(data=>{
-      ORGS=(data.orgs||[]).map(o=>{
-        const coords=COORD_MAP[o.name]||[33.38,-111.86];
-        const domain=DOMAIN_MAP[o.name]||(o.website?o.website.replace(/^https?:\/\//,'').split('/')[0]:null);
-        const nextArr=o.nextSteps?o.nextSteps.split(/[.\n]/).map(s=>s.trim()).filter(s=>s.length>10):[];
-        return{
-          name:o.name,city:o.city,lat:coords[0],lng:coords[1],
-          cat:catIdFromLabel(o.category),
-          status:o.status==='Active'?'active':o.status==='Target'?'target':'inactive',
-          proj:Number(o.projects)||0,size:o.size||'Medium',
-          score:Number(o.score)||0,admin:o.adminName||null,
-          added:o.dateAdded||null,pri:o.priority||'Medium',
-          phone:o.phone||null,email:o.email||null,
-          address:o.address||null,domain,
-          url:o.website?'https://'+o.website.replace(/^https?:\/\//,''):null,
-          faith:o.faith||null,note:o.notes||'',next:nextArr,
-        };
-      });
-      updateStats();buildCatList();buildLegend();buildOrgList();buildDashboard();
+    .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(async data => {
+      const rawOrgs = data.orgs || [];
+      if(statusEl) { statusEl.textContent = 'Geocoding ' + rawOrgs.length + ' locations...'; statusEl.style.color = 'var(--accent)'; }
+
+      // Geocode all orgs with addresses in parallel batches of 10
+      const BATCH = 10;
+      const results = [];
+      
+      for(let i = 0; i < rawOrgs.length; i += BATCH) {
+        const batch = rawOrgs.slice(i, i + BATCH);
+        const geocoded = await Promise.all(
+          batch.map(o => o.address ? geocodeAddress(o.address) : Promise.resolve(null))
+        );
+        batch.forEach((o, j) => results.push(orgFromData(o, geocoded[j])));
+        
+        // Update progress
+        const done = Math.min(i + BATCH, rawOrgs.length);
+        if(statusEl) statusEl.textContent = `Geocoding... ${done}/${rawOrgs.length}`;
+      }
+
+      ORGS = results;
+
+      const exactCount = ORGS.filter(o => o.geocoded).length;
+      console.log(`✅ Loaded ${ORGS.length} orgs: ${exactCount} geocoded exactly, ${ORGS.length - exactCount} estimated`);
+
+      updateStats();
+      buildCatList();
+      buildLegend();
+      buildOrgList();
+      buildDashboard();
       if(gmap) buildMarkers();
-      const el=document.getElementById('loadStatus');
-      if(el){el.textContent=ORGS.length+' orgs · '+new Date(data.lastUpdated).toLocaleDateString();el.style.color='var(--brand)';}
+
+      if(statusEl) {
+        statusEl.textContent = `${ORGS.length} orgs · ${exactCount} pinned exactly · ${new Date(data.lastUpdated).toLocaleDateString()}`;
+        statusEl.style.color = 'var(--brand)';
+      }
     })
-    .catch(err=>{
-      console.error('Load failed:',err);
-      const el=document.getElementById('loadStatus');
-      if(el){el.textContent='⚠ Could not load live data';el.style.color='#C75000';}
+    .catch(err => {
+      console.error('Load failed:', err);
+      if(statusEl) { statusEl.textContent = '⚠ Could not load live data'; statusEl.style.color = '#C75000'; }
     });
 }
 function catIdFromLabel(label){
@@ -669,13 +734,18 @@ function buildMarkers(){
 function openPopup(o,marker){
   const col=catColor(o.cat);
   document.getElementById('ppStrip').style.background=col;
-  const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=400x140&location=${o.lat},${o.lng}&fov=90&pitch=10&key=${API_KEY}`;
+  // Use address for Street View when available - more accurate than coordinates
+  const svLoc = o.address ? encodeURIComponent(o.address) : `${o.lat},${o.lng}`;
+  const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=400x140&location=${svLoc}&fov=80&pitch=5&key=${API_KEY}`;
   document.getElementById('ppSV').src=svUrl;
   const logo=document.getElementById('ppLogo'),fb=document.getElementById('ppLogoFb');
   if(o.domain){logo.src=`https://logo.clearbit.com/${o.domain}`;logo.style.display='block';fb.style.display='none';}
   else{logo.style.display='none';fb.style.display='flex';fb.style.background=col;fb.textContent=o.name.charAt(0);}
   document.getElementById('ppName').textContent=o.name;
-  document.getElementById('ppCity').innerHTML=`📍 ${o.city}, AZ`;
+  const geoTag = o.geocoded 
+    ? '<span style="color:#1B5E4F;font-size:10px;margin-left:6px">📍 Exact location</span>'
+    : '<span style="color:#C68000;font-size:10px;margin-left:6px">⚠ Approximate location</span>';
+  document.getElementById('ppCity').innerHTML=`📍 ${o.city}, AZ ${geoTag}`;
   const sBg=o.status==='active'?'#E8F5E9':'#FFF8E1';
   const sCol=o.status==='active'?'#1B5E20':'#C75000';
   const sLbl=o.status==='active'?'✓ On JustServe':'⊕ Expansion Target';
