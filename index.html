@@ -973,45 +973,42 @@ let cityVisible = {Mesa:true, Chandler:true, Tempe:true, Gilbert:true};
 function buildCityBoundaries(){
   if(!gmap) return;
   
-  // Use FeatureLayer with data-driven styling for REAL city boundaries
-  // This requires a Vector Map ID (which we now have)
+  // Always use geocoded polygon fallback — works on ALL browsers regardless of WebGL
+  // FeatureLayer requires WebGL/Vector mode which isn't universally supported
+  buildCityPolygonsFallback();
+  
+  // Also try FeatureLayer for browsers that support it (adds real boundaries on top)
   try {
-    const localityLayer = gmap.getFeatureLayer(google.maps.FeatureType.LOCALITY);
-    
-    const CITY_STYLES = {
-      'Mesa':     {stroke:'#185FA5', fill:'#185FA5'},
-      'Chandler': {stroke:'#2E7D32', fill:'#2E7D32'},
-      'Tempe':    {stroke:'#BF360C', fill:'#BF360C'},
-      'Gilbert':  {stroke:'#E65100', fill:'#E65100'},
-    };
-    // Place IDs for each city (verified)
-    const CITY_PLACE_IDS = {
-      'ChIJZcuTub-x1oYR5gwFGBxnADk': 'Mesa',
-      'ChIJR3_ODNkIK4cRbn5GkDJ_e3A': 'Chandler',
-      'ChIJV3worPwIK4cRB2YWDCcvZR0': 'Tempe',
-      'ChIJhSEsaBUQK4cR2j_kSIkGY5k': 'Gilbert',
-    };
-
-    localityLayer.style = (options) => {
-      const cityName = CITY_PLACE_IDS[options.feature.placeId];
-      if(cityName && cityVisible[cityName]) {
-        const s = CITY_STYLES[cityName];
-        return {
-          strokeColor: s.stroke,
-          strokeOpacity: 0.8,
-          strokeWeight: 2.5,
-          fillColor: s.fill,
-          fillOpacity: 0.05,
-        };
-      }
-      return null;
-    };
-    window._localityLayer = localityLayer;
-    console.log('✅ Real city boundaries via FeatureLayer');
+    if(google.maps.FeatureType && google.maps.FeatureType.LOCALITY) {
+      const localityLayer = gmap.getFeatureLayer(google.maps.FeatureType.LOCALITY);
+      const CITY_STYLES = {
+        'Mesa':     {stroke:'#185FA5', fill:'#185FA5'},
+        'Chandler': {stroke:'#2E7D32', fill:'#2E7D32'},
+        'Tempe':    {stroke:'#BF360C', fill:'#BF360C'},
+        'Gilbert':  {stroke:'#E65100', fill:'#E65100'},
+      };
+      const CITY_PLACE_IDS = {
+        'ChIJZcuTub-x1oYR5gwFGBxnADk': 'Mesa',
+        'ChIJR3_ODNkIK4cRbn5GkDJ_e3A': 'Chandler',
+        'ChIJV3worPwIK4cRB2YWDCcvZR0': 'Tempe',
+        'ChIJhSEsaBUQK4cR2j_kSIkGY5k': 'Gilbert',
+      };
+      localityLayer.style = (options) => {
+        const cityName = CITY_PLACE_IDS[options.feature.placeId];
+        if(cityName && cityVisible[cityName]) {
+          const s = CITY_STYLES[cityName];
+          return { strokeColor:s.stroke, strokeOpacity:0.8, strokeWeight:2.5,
+                   fillColor:s.fill, fillOpacity:0.05 };
+        }
+        return null;
+      };
+      window._localityLayer = localityLayer;
+      console.log('✅ FeatureLayer also active (Vector mode supported)');
+    }
   } catch(e) {
-    console.warn('FeatureLayer failed, using geocoded fallback:', e.message);
-    buildCityPolygonsFallback();
+    console.log('FeatureLayer not available (WebGL/Raster mode) — using polygon outlines');
   }
+  
   buildStakeBoundary();
 }
 
