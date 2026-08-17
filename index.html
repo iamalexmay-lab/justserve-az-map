@@ -597,8 +597,23 @@ function loadOrgsFromGitHub(){
     });
 }
 function catIdFromLabel(label){
-  const map={'Food & Hunger':'food','Homeless/Housing':'homeless','Foster Care':'foster','Youth & Education':'youth','Health & Hospice':'health','Seniors':'seniors','Multi-service':'multi','Faith-based':'faith','Disability Services':'disability','Domestic Violence':'dv','Mental Health':'mental','Arts & Culture':'arts'};
-  return map[label]||'multi';
+  if(!label) return 'multi';
+  const l=label.trim().toLowerCase();
+  if(l.includes('food')||l.includes('hunger')) return 'food';
+  if(l.includes('homeless')||l.includes('housing')||l.includes('shelter')) return 'homeless';
+  if(l.includes('foster')) return 'foster';
+  if(l.includes('youth')||l.includes('education')||l.includes('school')||l.includes('child')) return 'youth';
+  if(l.includes('health')||l.includes('hospice')||l.includes('medical')) return 'health';
+  if(l.includes('senior')||l.includes('elder')||l.includes('aging')) return 'seniors';
+  if(l.includes('faith')||l.includes('church')||l.includes('religious')) return 'faith';
+  if(l.includes('disabilit')) return 'disability';
+  if(l.includes('domestic')||l.includes('violence')||l.includes(' dv')) return 'dv';
+  if(l.includes('mental')) return 'mental';
+  if(l.includes('art')||l.includes('cultur')||l.includes('music')) return 'arts';
+  if(l.includes('multi')||l.includes('service')||l.includes('community')) return 'multi';
+  // Exact match fallback
+  const exact={'food & hunger':'food','homeless/housing':'homeless','foster care':'foster','youth & education':'youth','health & hospice':'health','seniors':'seniors','multi-service':'multi','faith-based':'faith','disability services':'disability','domestic violence':'dv','mental health':'mental','arts & culture':'arts'};
+  return exact[l]||'multi';
 }
 
 // ── GOOGLE MAP ───────────────────────────────────────────────
@@ -617,6 +632,7 @@ function initMap(){
     styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}],
   });
   gmap.addListener('click',()=>{if(popupOpen)closePopup();});
+  buildCityPolygons();
   loadOrgsFromGitHub();
 }
 
@@ -828,10 +844,10 @@ function buildOrgList(){
   document.getElementById('orgList').innerHTML=vis.map(o=>{
     const col=catColor(o.cat);
     const tag=o.status==='active'?'<span class="tag tag-active">✓</span>':'<span class="tag tag-target">⊕</span>';
-    return `<div class="org-item" onclick="flyToOrg('${o.name.replace(/'/g,"\'")}')">
+    return `<div class="org-item" onclick="flyToOrg('${(o.name||"Unknown").replace(/'/g,"\'")}')">
       <div class="cat-dot" style="background:${col};margin-top:5px;flex-shrink:0"></div>
       <div><div class="org-name">${o.name}</div>
-      <div class="org-meta">${tag}<span>${o.city}</span>${o.proj>0?`<span>${o.proj}p</span>`:''}<span class="${o.pri==='High'?'pri-high':o.pri==='Medium'?'pri-med':'pri-low'}">${o.pri}</span></div></div>
+      <div class="org-meta">${tag}<span>${o.city}</span><span style="color:${catColor(o.cat)}">${catLabel(o.cat)}</span>${o.proj>0?`<span>${o.proj}p</span>`:''}</div></div>
     </div>`;
   }).join('');
 }
