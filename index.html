@@ -583,10 +583,16 @@ function geocodeAddress(address) {
   if(!address || address.length < 10) return Promise.resolve(null);
   if(geocodeCache[address]) return Promise.resolve(geocodeCache[address]);
   
-  const geocoder = getGeocoder();
+  let geocoder = getGeocoder();
   if(!geocoder) {
-    console.warn('Geocoder not ready yet for:', address);
-    return Promise.resolve(null);
+    // Geocoder not ready - create it now if Maps API is loaded
+    if(typeof google !== 'undefined' && google.maps && google.maps.Geocoder) {
+      _geocoder = new google.maps.Geocoder();
+      geocoder = _geocoder;
+    } else {
+      console.warn('Geocoder not ready, Maps API not loaded yet:', address);
+      return Promise.resolve(null);
+    }
   }
   
   return new Promise(resolve => {
@@ -1077,16 +1083,28 @@ function buildLegend(){
   document.getElementById('legendRows').innerHTML=CATS.filter(c=>ORGS.some(o=>o.cat===c.id)).map(c=>`<div class="legend-row"><div class="legend-dot" style="background:${c.color}"></div><span style="color:#6B6B6B">${c.label}</span></div>`).join('');
 }
 function buildOrgList(){
-  const vis=ORGS.filter(isVis);
-  document.getElementById('oCount').textContent=vis.length;
-  document.getElementById('orgList').innerHTML=vis.map(o=>{
-    const col=catColor(o.cat);
-    const tag=o.status==='active'?'<span class="tag tag-active">✓</span>':'<span class="tag tag-target">⊕</span>';
-    return `<div class="org-item" style="${noLocStyle}" onclick="flyToOrg('${(o.name||"Unknown").replace(/'/g,"\'")}')">
-      <div class="cat-dot" style="background:${col};margin-top:5px;flex-shrink:0"></div>
-      <div><div class="org-name">${o.name}</div>
-      <div class="org-meta">${tag}${noLocTag}<span>${o.city}</span><span style="color:${catColor(o.cat)}">${catLabel(o.cat)}</span>${o.proj>0?`<span>${o.proj}p</span>`:''}</div></div>
-    </div>`;
+  const vis = ORGS.filter(isVis);
+  document.getElementById('oCount').textContent = vis.length;
+  document.getElementById('orgList').innerHTML = vis.map(o => {
+    const col = catColor(o.cat);
+    const statusTag = o.status === 'active'
+      ? '<span class="tag tag-active">✓</span>'
+      : '<span class="tag tag-target">⊕</span>';
+    const noAddrStyle = o.mappable ? '' : 'opacity:0.65;border-style:dashed;';
+    const noAddrTag = o.mappable ? '' : '<span class="tag" style="background:#FFF3E0;color:#E65100;font-size:9px">No address</span>';
+    const safeName = (o.name || 'Unknown').replace(/'/g, "\'");
+    const projBadge = o.proj > 0 ? '<span>' + o.proj + 'p</span>' : '';
+    return '<div class="org-item" style="' + noAddrStyle + '" onclick="flyToOrg(\'' + safeName + '\')">'
+      + '<div class="cat-dot" style="background:' + col + ';margin-top:5px;flex-shrink:0"></div>'
+      + '<div>'
+        + '<div class="org-name">' + (o.name || '') + '</div>'
+        + '<div class="org-meta">' + statusTag + noAddrTag
+          + '<span>' + (o.city || '') + '</span>'
+          + '<span style="color:' + col + '">' + catLabel(o.cat) + '</span>'
+          + projBadge
+        + '</div>'
+      + '</div>'
+    + '</div>';
   }).join('');
 }
 window.flyToOrg=function(name){
