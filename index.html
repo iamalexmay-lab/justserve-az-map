@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>JustServe AZ — East Valley</title>
+<style>
+/* ── RESET & TOKENS ─────────────────────────────────────────── */
+:root{
+  --brand:#1B5E4F; --brand-dark:#0F3D32; --brand-light:#E8F4F1;
+  --accent:#E8A020; --accent-light:#FDF3E0;
+  --bg:#F7F6F2; --surface:#FFFFFF; --border:#E2E0D8;
+  --text:#1A1A1A; --muted:#6B6B6B;
+  --shadow:0 4px 24px rgba(0,0,0,0.13);
+  --radius:10px;
+  --header-h:52px;
+  --tab-h:44px;
+  --sidebar-w:270px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+header{
+  position:fixed;top:0;left:0;right:0;
+  height:var(--header-h);
+  background:var(--brand);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1rem;z-index:300;
+}
+.logo{display:flex;align-items:center;gap:8px;min-width:0}
+.logo-icon{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.logo-text{font-weight:700;font-size:14px;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.logo-sub{font-size:9px;color:rgba(255,255,255,.6);margin-top:1px;display:none}
+.hstats{display:flex;gap:1rem;flex-shrink:0}
+.hstat-val{font-size:15px;font-weight:700;color:white;text-align:right}
+.hstat-val.amber{color:#E8A020}.hstat-val.purple{color:#CE93D8}
+.hstat-label{font-size:8px;color:rgba(255,255,255,.55);letter-spacing:.5px;text-align:right;text-transform:uppercase}
+
+/* ── TAB BAR ────────────────────────────────────────────────── */
+.tab-bar{
+  position:fixed;top:var(--header-h);left:0;right:0;
+  height:var(--tab-h);
+  background:var(--brand-dark);
+  display:flex;z-index:299;
+}
+.tab-btn{
+  flex:1;font-size:13px;font-weight:500;
+  color:rgba(255,255,255,.6);
+  border:none;background:transparent;cursor:pointer;
+  border-bottom:2.5px solid transparent;
+  transition:all .2s;font-family:inherit;
+  min-height:44px; /* touch target */
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.tab-btn.active{color:white;border-bottom-color:var(--accent)}
+.tab-btn:hover{color:white}
+
+/* ── MAIN LAYOUT ────────────────────────────────────────────── */
+.app{
+  position:fixed;
+  top:calc(var(--header-h) + var(--tab-h));
+  left:0;right:0;bottom:0;
+  display:flex;overflow:hidden;
+}
+.tab-content{display:none;flex:1;overflow:hidden;flex-direction:row}
+.tab-content.active{display:flex}
+
+/* ── SIDEBAR ────────────────────────────────────────────────── */
+.sidebar{
+  width:var(--sidebar-w);
+  flex-shrink:0;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  transition:transform .3s ease;
+  z-index:200;
+}
+
+/* Mobile: sidebar slides in as drawer */
+@media(max-width:768px){
+  .sidebar{
+    position:absolute;top:0;left:0;bottom:0;
+    width:min(var(--sidebar-w), 85vw);
+    transform:translateX(-100%);
+    box-shadow:var(--shadow);
+  }
+  .sidebar.open{transform:translateX(0)}
+}
+
+.sb-section{padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-label{font-size:10px;font-weight:700;letter-spacing:.7px;color:var(--muted);margin-bottom:5px;text-transform:uppercase}
+
+/* ── SEARCH INPUT ───────────────────────────────────────────── */
+.search-wrap{position:relative}
+.search-wrap input{
+  width:100%;padding:9px 10px 9px 32px;
+  border:1px solid var(--border);border-radius:7px;
+  font-size:14px;background:var(--bg);color:var(--text);
+  font-family:inherit;
+  min-height:44px; /* touch target */
+}
+.search-wrap input:focus{outline:none;border-color:var(--brand)}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
+
+/* ── STATUS BUTTONS ─────────────────────────────────────────── */
+.status-row{display:flex;flex-wrap:wrap;gap:5px}
+.sbtn{
+  padding:6px 10px;border-radius:10px;font-size:12px;
+  border:1px solid var(--border);cursor:pointer;
+  background:var(--surface);color:var(--muted);
+  font-family:inherit;transition:all .15s;
+  min-height:36px;
+}
+.sbtn.on{background:var(--brand);border-color:var(--brand);color:white}
+
+/* ── CATEGORY LIST ──────────────────────────────────────────── */
+.cat-row{
+  display:flex;align-items:center;gap:7px;
+  padding:6px 6px;border-radius:6px;cursor:pointer;
+  font-size:12px;user-select:none;transition:background .1s;
+  min-height:36px;
+}
+.cat-row:hover{background:var(--bg)}.cat-row.off{opacity:.35}
+.cat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cat-count{margin-left:auto;font-size:10px;color:var(--muted);background:var(--bg);padding:1px 6px;border-radius:8px}
+
+/* ── ORG LIST ───────────────────────────────────────────────── */
+.org-scroll{flex:1;overflow-y:auto;padding:6px;-webkit-overflow-scrolling:touch}
+.org-scroll::-webkit-scrollbar{width:3px}
+.org-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.result-info{font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--muted);padding:2px 4px 5px;text-transform:uppercase}
+.load-status{font-size:10px;color:var(--muted);padding:0 4px 5px;font-style:italic}
+.org-item{
+  padding:8px 9px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--border);margin-bottom:4px;
+  display:flex;align-items:flex-start;gap:7px;
+  transition:all .15s;min-height:48px; /* comfortable touch target */
+}
+.org-item:active{background:var(--brand-light);border-color:var(--brand)}
+.org-item.sel{border-color:var(--accent);background:var(--accent-light)}
+.org-name{font-size:12px;font-weight:600;line-height:1.3}
+.org-meta{font-size:10px;color:var(--muted);margin-top:2px;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.tag{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700}
+.tag-active{background:#E8F5E9;color:#1B5E20}
+.tag-target{background:#FFF8E1;color:#C75000}
+
+/* ── MAP CONTAINER ──────────────────────────────────────────── */
+.map-container{flex:1;position:relative;overflow:hidden}
+#gmap{width:100%;height:100%;touch-action:none}
+
+/* ── MOBILE TOGGLE BUTTON (hamburger) ───────────────────────── */
+.sidebar-toggle{
+  display:none;
+  position:absolute;top:10px;left:10px;
+  width:40px;height:40px;
+  background:white;border:1px solid var(--border);
+  border-radius:8px;cursor:pointer;
+  align-items:center;justify-content:center;
+  font-size:18px;z-index:201;
+  box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+@media(max-width:768px){
+  .sidebar-toggle{display:flex}
+}
+
+/* ── SIDEBAR OVERLAY (mobile) ───────────────────────────────── */
+.sidebar-overlay{
+  display:none;
+  position:absolute;inset:0;
+  background:rgba(0,0,0,.4);
+  z-index:199;
+  opacity:0;transition:opacity .3s;
+}
+.sidebar-overlay.visible{opacity:1}
+@media(max-width:768px){
+  .sidebar-overlay{display:block}
+}
+
+/* ── MAP LEGEND ─────────────────────────────────────────────── */
+.map-legend{
+  position:absolute;bottom:80px;right:8px;
+  background:white;border-radius:10px;
+  padding:9px 12px;border:1px solid var(--border);
+  font-size:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);
+  z-index:100;min-width:140px;
+  max-height:50vh;overflow-y:auto;
+}
+@media(max-width:768px){
+  .map-legend{display:none} /* hidden on mobile — shown via button */
+}
+.legend-title{font-weight:700;font-size:11px;margin-bottom:6px}
+.legend-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* ── POPUP CARD ─────────────────────────────────────────────── */
+#popup{
+  position:absolute;
+  background:white;
+  border-radius:14px;
+  box-shadow:var(--shadow);
+  display:none;
+  z-index:150;
+  overflow:hidden;
+  border:1px solid var(--border);
+  flex-direction:column;
+  /* Size and position set by JS based on screen size */
+}
+#popup.visible{display:flex}
+
+/* Mobile: popup as bottom sheet */
+@media(max-width:768px){
+  #popup{
+    position:fixed !important;
+    left:0 !important; right:0 !important;
+    bottom:0 !important; top:auto !important;
+    width:100% !important;
+    border-radius:18px 18px 0 0;
+    max-height:70vh;
+  }
+  #popup .popup-strip{height:4px}
+  /* Drag handle */
+  #popup::before{
+    content:'';display:block;
+    width:36px;height:4px;
+    background:var(--border);border-radius:2px;
+    margin:10px auto 0;flex-shrink:0;
+  }
+}
+
+.popup-close{
+  position:absolute;top:10px;right:12px;
+  width:28px;height:28px;
+  background:rgba(0,0,0,.12);border:none;border-radius:50%;
+  cursor:pointer;font-size:13px;color:white;
+  display:flex;align-items:center;justify-content:center;
+  z-index:10;font-family:inherit;
+  min-width:28px;min-height:28px; /* touch target */
+}
+.popup-close:hover{background:rgba(0,0,0,.25)}
+.popup-strip{height:5px;flex-shrink:0}
+.popup-sv{width:100%;height:140px;object-fit:cover;display:block;flex-shrink:0;background:#eee}
+@media(max-width:768px){.popup-sv{height:120px}}
+.popup-logo-wrap{
+  position:absolute;top:130px;left:13px;
+  width:44px;height:44px;border-radius:10px;
+  background:white;border:2.5px solid white;
+  box-shadow:0 2px 8px rgba(0,0,0,.15);
+  overflow:hidden;display:flex;align-items:center;justify-content:center;z-index:5;
+}
+@media(max-width:768px){.popup-logo-wrap{top:112px}}
+.popup-logo{width:40px;height:40px;object-fit:contain}
+.popup-logo-fb{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:white}
+.popup-body{
+  padding:26px 14px 14px;
+  overflow-y:auto;flex:1;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:calc(14px + var(--safe-bottom));
+}
+.popup-body::-webkit-scrollbar{width:3px}
+.popup-name{font-size:15px;font-weight:700;line-height:1.3;margin-bottom:2px}
+.popup-city{font-size:12px;color:var(--muted);margin-bottom:8px}
+.popup-badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.popup-badge{font-size:10px;padding:3px 8px;border-radius:10px;font-weight:600}
+.intel-box{background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:9px}
+.intel-title{font-size:9px;font-weight:700;letter-spacing:.7px;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
+.intel-row{display:flex;gap:8px;margin-bottom:5px;font-size:12px;align-items:flex-start}
+.intel-row:last-child{margin-bottom:0}
+.intel-icon{font-size:13px;flex-shrink:0}
+.intel-label{font-weight:600;min-width:72px;flex-shrink:0}
+.intel-val{color:var(--muted);line-height:1.4;word-break:break-word}
+.next-steps{background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:9px}
+.next-item{display:flex;gap:7px;margin-bottom:5px;font-size:12px;color:var(--muted);line-height:1.4}
+.popup-actions{display:flex;gap:6px;margin-top:2px;flex-wrap:wrap}
+.popup-btn{
+  flex:1;padding:10px;border-radius:8px;
+  font-size:13px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-align:center;text-decoration:none;
+  display:block;border:none;transition:all .15s;
+  min-height:44px;display:flex;align-items:center;justify-content:center;
+}
+.pbtn-primary{background:var(--brand);color:white}
+.pbtn-secondary{background:var(--bg);color:var(--brand);border:1px solid var(--border)}
+
+/* ── MOBILE BOTTOM ACTION BAR ───────────────────────────────── */
+.mobile-bar{
+  display:none;
+  position:absolute;bottom:0;left:0;right:0;
+  background:white;border-top:1px solid var(--border);
+  padding:8px 12px calc(8px + var(--safe-bottom));
+  gap:8px;z-index:100;
+}
+@media(max-width:768px){.mobile-bar{display:flex}}
+.mobile-bar-btn{
+  flex:1;padding:10px;border-radius:8px;
+  font-size:12px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-align:center;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);
+  min-height:44px;
+}
+.mobile-bar-btn.active-mb{background:var(--brand);color:white;border-color:var(--brand)}
+
+/* ── ZOOM CONTROLS ──────────────────────────────────────────── */
+.zoom-ctrl{
+  position:absolute;top:10px;right:10px;
+  display:flex;flex-direction:column;gap:4px;z-index:100;
+}
+@media(max-width:768px){.zoom-ctrl{right:8px;top:60px}}
+.zoom-btn{
+  width:36px;height:36px;
+  background:white;border:1px solid var(--border);
+  border-radius:7px;font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);font-family:inherit;color:var(--text);
+}
+
+/* ── CITY TOGGLE ────────────────────────────────────────────── */
+.city-toggle{
+  position:absolute;top:10px;left:10px;
+  background:white;border:1px solid var(--border);
+  border-radius:8px;padding:8px 10px;z-index:100;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);font-size:11px;
+}
+@media(max-width:768px){.city-toggle{display:none}} /* replaced by sidebar on mobile */
+.city-toggle-title{font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:5px;text-transform:uppercase;font-size:9px}
+.city-row-ctrl{display:flex;align-items:center;gap:5px;margin-bottom:3px;cursor:pointer;font-size:11px;min-height:24px}
+.city-row-ctrl:last-child{margin-bottom:0}
+.city-row-ctrl label{cursor:pointer}
+
+/* ── DASHBOARD ──────────────────────────────────────────────── */
+.dash-wrap{flex:1;overflow-y:auto;padding:1rem;-webkit-overflow-scrolling:touch}
+.dash-wrap::-webkit-scrollbar{width:4px}
+.dash-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.dash-metrics{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:10px;margin-bottom:1.25rem;
+}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem 1rem}
+.metric-val{font-size:24px;font-weight:700;color:var(--brand)}
+.metric-label{font-size:11px;color:var(--muted);margin-top:3px}
+.metric-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.dash-section{margin-bottom:1.75rem}
+.dash-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:6px}
+.dash-section-title{font-size:14px;font-weight:700}
+.dash-section-badge{font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600}
+
+/* Responsive table — card view on mobile */
+.dash-table{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface);border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+.dash-table th{padding:9px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap}
+.dash-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.dash-table tr:last-child td{border-bottom:none}
+.dash-table tr:hover td{background:#FAFAF8}
+
+/* On small screens, hide less important columns */
+@media(max-width:768px){
+  .dash-table .col-hide{display:none}
+  .dash-table td{padding:8px 8px;font-size:11px}
+  .dash-table th{padding:8px 8px;font-size:9px}
+}
+@media(max-width:480px){
+  .dash-table .col-hide-sm{display:none}
+}
+
+.score-wrap{display:flex;align-items:center;gap:5px}
+.score-bar{height:4px;border-radius:2px;background:#EEE;width:40px;flex-shrink:0}
+.score-fill{height:4px;border-radius:2px;background:var(--brand)}
+.dash-tag{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;white-space:nowrap}
+.dt-food{background:#FDE8D4;color:#7B3300}.dt-homeless{background:#E3EEF9;color:#0C3B6E}
+.dt-foster{background:#F3E5F5;color:#4A148C}.dt-youth{background:#E8F5E9;color:#1B5E20}
+.dt-health{background:#FDECEA;color:#7F1919}.dt-seniors{background:#FFF8E1;color:#5D3900}
+.dt-multi{background:#ECEFF1;color:#263238}.dt-faith{background:#EDE7F6;color:#311B92}
+.dt-disability{background:#E0F7FA;color:#006064}.dt-dv{background:#FCE4EC;color:#880E4F}
+.dt-mental{background:#F3E5F5;color:#6A1B9A}.dt-arts{background:#FFF3E0;color:#E65100}
+.pri-high{color:#B71C1C;font-weight:700}.pri-med{color:#E65100;font-weight:600}.pri-low{color:#2E7D32;font-weight:600}
+.city-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🤝</div>
+    <div>
+      <div class="logo-text">JustServe AZ — East Valley</div>
+      <div class="logo-sub">Alma Stake Outreach Tool</div>
+    </div>
+  </div>
+  <div class="hstats">
+    <div><div class="hstat-val" id="hA">—</div><div class="hstat-label">Active</div></div>
+    <div><div class="hstat-val amber" id="hT">—</div><div class="hstat-label">Targets</div></div>
+    <div class="hstat-desktop"><div class="hstat-val purple" id="hF">—</div><div class="hstat-label">Foster</div></div>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('map',this)">🗺 Map</button>
+  <button class="tab-btn" onclick="switchTab('dash',this)">📊 Dashboard</button>
+</div>
+
+<div class="app">
+
+  <!-- ── MAP TAB ── -->
+  <div id="tab-map" class="tab-content active">
+
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sb-section">
+        <div class="sb-label">Search</div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="srch" placeholder="Search organizations..." autocomplete="off">
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Status</div>
+        <div class="status-row">
+          <button class="sbtn on" data-s="all" onclick="setStatus(this)">All</button>
+          <button class="sbtn" data-s="active" onclick="setStatus(this)">✓ Active</button>
+          <button class="sbtn" data-s="target" onclick="setStatus(this)">⊕ Targets</button>
+          <button class="sbtn" data-s="foster" onclick="setStatus(this)">❤ Foster</button>
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-label">Category</div>
+        <div id="catList"></div>
+      </div>
+      <!-- City toggles inside sidebar on mobile -->
+      <div class="sb-section" id="cityToggleMobile">
+        <div class="sb-label">City Boundaries</div>
+        <div>
+          <div class="city-row-ctrl"><input type="checkbox" id="cMesa2" checked onchange="toggleCity('Mesa',this)"><label for="cMesa2" style="color:#185FA5">Mesa</label></div>
+          <div class="city-row-ctrl"><input type="checkbox" id="cChandler2" checked onchange="toggleCity('Chandler',this)"><label for="cChandler2" style="color:#2E7D32">Chandler</label></div>
+          <div class="city-row-ctrl"><input type="checkbox" id="cTempe2" checked onchange="toggleCity('Tempe',this)"><label for="cTempe2" style="color:#BF360C">Tempe</label></div>
+          <div class="city-row-ctrl"><input type="checkbox" id="cGilbert2" checked onchange="toggleCity('Gilbert',this)"><label for="cGilbert2" style="color:#E65100">Gilbert</label></div>
+        </div>
+      </div>
+      <div class="org-scroll">
+        <div class="result-info">Orgs (<span id="oCount">…</span>)</div>
+        <div class="load-status" id="loadStatus">Loading live data…</div>
+        <div id="orgList"></div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-container">
+      <div id="gmap"></div>
+
+      <!-- Mobile hamburger -->
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" aria-label="Open filters">☰</button>
+
+      <!-- Desktop city toggles -->
+      <div class="city-toggle">
+        <div class="city-toggle-title">City Boundaries</div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cMesa" checked onchange="toggleCity('Mesa',this)"><label for="cMesa" style="color:#185FA5">Mesa</label></div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cChandler" checked onchange="toggleCity('Chandler',this)"><label for="cChandler" style="color:#2E7D32">Chandler</label></div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cTempe" checked onchange="toggleCity('Tempe',this)"><label for="cTempe" style="color:#BF360C">Tempe</label></div>
+        <div class="city-row-ctrl"><input type="checkbox" id="cGilbert" checked onchange="toggleCity('Gilbert',this)"><label for="cGilbert" style="color:#E65100">Gilbert</label></div>
+      </div>
+
+      <!-- Zoom controls -->
+      <div class="zoom-ctrl">
+        <button class="zoom-btn" onclick="gmap&&gmap.setZoom(gmap.getZoom()+1)" aria-label="Zoom in">+</button>
+        <button class="zoom-btn" onclick="gmap&&gmap.setZoom(gmap.getZoom()-1)" aria-label="Zoom out">−</button>
+        <button class="zoom-btn" onclick="resetMap()" aria-label="Reset map" style="font-size:13px">⌂</button>
+      </div>
+
+      <!-- Desktop legend -->
+      <div class="map-legend">
+        <div class="legend-title">Legend</div>
+        <div id="legendRows"></div>
+        <div style="margin-top:7px;padding-top:7px;border-top:1px solid #eee">
+          <div class="legend-row"><div class="legend-dot" style="background:#1B5E4F"></div><span style="color:#6B6B6B">On JustServe</span></div>
+          <div class="legend-row"><div class="legend-dot" style="background:white;border:2px solid #E8A020;box-sizing:border-box"></div><span style="color:#6B6B6B">Expansion target</span></div>
+        </div>
+      </div>
+
+      <!-- Popup card -->
+      <div id="popup">
+        <div class="popup-strip" id="ppStrip"></div>
+        <button class="popup-close" onclick="closePopup()" aria-label="Close">✕</button>
+        <img id="ppSV" class="popup-sv" src="" alt="Street View">
+        <div class="popup-logo-wrap">
+          <img id="ppLogo" class="popup-logo" src="" alt="logo" onerror="handleLogoErr()">
+          <div id="ppLogoFb" class="popup-logo-fb" style="display:none"></div>
+        </div>
+        <div class="popup-body">
+          <div class="popup-name" id="ppName"></div>
+          <div class="popup-city" id="ppCity"></div>
+          <div class="popup-badges" id="ppBadges"></div>
+          <div class="intel-box">
+            <div class="intel-title">📋 Outreach Intelligence</div>
+            <div class="intel-row" id="ppAddrRow"><span class="intel-icon">📍</span><span class="intel-label">Address</span><span class="intel-val" id="ppAddr"></span></div>
+            <div class="intel-row" id="ppPhoneRow"><span class="intel-icon">📞</span><span class="intel-label">Phone</span><span class="intel-val" id="ppPhone"></span></div>
+            <div class="intel-row" id="ppEmailRow"><span class="intel-icon">✉️</span><span class="intel-label">Email</span><span class="intel-val" id="ppEmail"></span></div>
+            <div class="intel-row"><span class="intel-icon">📁</span><span class="intel-label">Projects</span><span class="intel-val" id="ppProj"></span></div>
+            <div class="intel-row"><span class="intel-icon">👤</span><span class="intel-label">Admin</span><span class="intel-val" id="ppAdmin"></span></div>
+            <div class="intel-row"><span class="intel-icon">🎯</span><span class="intel-label">Priority</span><span class="intel-val" id="ppPri"></span></div>
+            <div class="intel-row"><span class="intel-icon">✝️</span><span class="intel-label">Faith</span><span class="intel-val" id="ppFaith"></span></div>
+          </div>
+          <div class="intel-box">
+            <div class="intel-title">💡 Outreach Notes</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.6" id="ppNote"></div>
+          </div>
+          <div class="next-steps" id="ppNextBox">
+            <div class="intel-title">✅ Next Steps</div>
+            <div id="ppNext"></div>
+          </div>
+          <div class="popup-actions" id="ppActions"></div>
+        </div>
+      </div>
+
+      <!-- Mobile bottom bar -->
+      <div class="mobile-bar">
+        <button class="mobile-bar-btn" onclick="toggleSidebar()">☰ Filters</button>
+        <button class="mobile-bar-btn" onclick="closePopup();resetMap()">⌂ Reset</button>
+        <button class="mobile-bar-btn" id="mbLegendBtn" onclick="toggleMobileLegend()">📍 Legend</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DASHBOARD TAB ── -->
+  <div id="tab-dash" class="tab-content">
+    <div class="dash-wrap">
+      <div class="dash-metrics" id="dashMetrics"></div>
+      <div id="dashContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CATEGORY DEFINITIONS ──────────────────────────────────────
+const CATS=[
+  {id:'food',label:'Food & Hunger',color:'#E8650A',dtClass:'dt-food'},
+  {id:'homeless',label:'Homeless/Housing',color:'#185FA5',dtClass:'dt-homeless'},
+  {id:'foster',label:'Foster Care',color:'#8B3DA8',dtClass:'dt-foster'},
+  {id:'youth',label:'Youth & Education',color:'#2E8B57',dtClass:'dt-youth'},
+  {id:'health',label:'Health & Hospice',color:'#C0392B',dtClass:'dt-health'},
+  {id:'seniors',label:'Seniors',color:'#C68000',dtClass:'dt-seniors'},
+  {id:'multi',label:'Multi-service',color:'#455A64',dtClass:'dt-multi'},
+  {id:'faith',label:'Faith-based',color:'#5E35B1',dtClass:'dt-faith'},
+  {id:'disability',label:'Disability',color:'#00838F',dtClass:'dt-disability'},
+  {id:'dv',label:'Domestic Violence',color:'#AD1457',dtClass:'dt-dv'},
+  {id:'mental',label:'Mental Health',color:'#6A1B9A',dtClass:'dt-mental'},
+  {id:'arts',label:'Arts & Culture',color:'#E65100',dtClass:'dt-arts'},
+];
+const CITY_COLORS={Mesa:'#185FA5',Chandler:'#2E7D32',Tempe:'#BF360C',Gilbert:'#E65100'};
+
+// ── COORDINATE & DOMAIN LOOKUP ───────────────────────────────
+const COORD_MAP={"Arizonans for Children":[33.3942,-111.9261],"Paz de Cristo Community Center":[33.4136,-111.8213],"StepStone Family & Youth Services":[33.4152,-111.7742],"Casa De La Luz Hospice":[33.4225,-111.859],"Feed My Starving Children":[33.396,-111.7915],"Iglesia Cristiana El Buen Pastor":[33.405,-111.845],"Buddhist Tzu Chi Foundation":[33.3062,-111.8413],"Banner Desert Medical Center":[33.375,-111.792],"Kids Need To Read":[33.428,-111.838],"Native American Fatherhood & Families":[33.4192,-111.831],"Companion Hospice":[33.41,-111.832],"Positive Paths":[33.4,-111.85],"Valley Bloom":[33.2962,-111.8513],"Booker T. Washington Elementary":[33.43,-111.86],"Adams Elementary":[33.385,-111.84],"Guerrero Elementary":[33.392,-111.862],"Crismon Elementary":[33.434,-111.804],"United Food Bank":[33.39,-111.751],"A New Leaf":[33.478,-111.854],"HandsOn Greater Phoenix":[33.3872,-111.8132],"For Our City Chandler":[33.3062,-111.8213],"Chandler Gilbert Arc":[33.32,-111.89],"La Mesa Ministries":[33.405,-111.825],"About Care":[33.28,-111.8313],"Matthew's Crossing Food Bank":[33.3562,-111.87],"Child Crisis Arizona":[33.335,-111.92],"Chrysalis Shelter":[33.318,-111.872],"Semicolon Society":[33.325,-111.855],"Chandler Cultural Foundation":[33.3028,-111.8412],"Neighbors Who Care":[33.265,-111.84],"The Centers for Habilitation":[33.4015,-111.9318],"St. Vincent de Paul":[33.31,-111.86],"Feed the Children":[33.27,-111.855],"Big Brothers Big Sisters AZ":[33.405,-111.87],"Salvation Army East Valley":[33.33,-111.88],"RISE Services Inc.":[33.381,-111.754],"Arizona Faith & Families":[33.3162,-111.91],"FostAdopt Connections":[33.415,-111.835],"Boys & Girls Club East Valley":[33.35,-111.895],"AZCEND":[33.3062,-111.8913],"Assistance League East Valley":[33.3162,-111.8413],"Candelen":[33.2962,-111.86],"Catholic Charities AZ":[33.328,-111.876],"notMYkid":[33.308,-111.89]};
+const DOMAIN_MAP={"Arizonans for Children":"arizonansforchildren.org","Paz de Cristo Community Center":"pazdecristoaz.org","StepStone Family & Youth Services":"stepstoneservices.org","Casa De La Luz Hospice":"casadelaluz.org","Feed My Starving Children":"fmsc.org","Buddhist Tzu Chi Foundation":"tw.tzuchi.us","Banner Desert Medical Center":"bannerhealth.com","Kids Need To Read":"kidsneedtoread.org","Native American Fatherhood & Families":"naffa.net","United Food Bank":"unitedfoodbank.org","A New Leaf":"turnanewleaf.org","HandsOn Greater Phoenix":"handsonphoenix.org","For Our City Chandler":"forourcitychandler.org","Chandler Gilbert Arc":"cgarc.org","Matthew's Crossing Food Bank":"matthewscrossing.org","Child Crisis Arizona":"childcrisisaz.org","Chrysalis Shelter":"chrysalisshelter.org","Semicolon Society":"semicolonsociety.org","Chandler Cultural Foundation":"chandlercenter.org","Neighbors Who Care":"neighborswhocare.org","The Centers for Habilitation":"the-centers.com","St. Vincent de Paul":"svdpaz.org","Feed the Children":"feedthechildren.org","Big Brothers Big Sisters AZ":"bbbsaz.org","Salvation Army East Valley":"salvationarmyusa.org","RISE Services Inc.":"riseservicesincaz.org","Boys & Girls Club East Valley":"bgcaz.org","AZCEND":"azcend.org","Candelen":"candelen.org","Catholic Charities AZ":"catholiccharitiesaz.org","notMYkid":"notmykid.org"};
+
+// ── DATA STATE ───────────────────────────────────────────────
+let ORGS=[];
+const API_KEY='AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM';
+
+// ── LIVE DATA LOADER ─────────────────────────────────────────
+function loadOrgsFromGitHub(){
+  const url='https://raw.githubusercontent.com/iamalexmay-lab/justserve-az-map/main/orgs.json?cache='+Date.now();
+  fetch(url)
+    .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(data=>{
+      ORGS=(data.orgs||[]).map(o=>{
+        const coords=COORD_MAP[o.name]||[33.38,-111.86];
+        const domain=DOMAIN_MAP[o.name]||(o.website?o.website.replace(/^https?:\/\//,'').split('/')[0]:null);
+        const nextArr=o.nextSteps?o.nextSteps.split(/[.\n]/).map(s=>s.trim()).filter(s=>s.length>10):[];
+        return{
+          name:o.name,city:o.city,lat:coords[0],lng:coords[1],
+          cat:catIdFromLabel(o.category),
+          status:o.status==='Active'?'active':o.status==='Target'?'target':'inactive',
+          proj:Number(o.projects)||0,size:o.size||'Medium',
+          score:Number(o.score)||0,admin:o.adminName||null,
+          added:o.dateAdded||null,pri:o.priority||'Medium',
+          phone:o.phone||null,email:o.email||null,
+          address:o.address||null,domain,
+          url:o.website?'https://'+o.website.replace(/^https?:\/\//,''):null,
+          faith:o.faith||null,note:o.notes||'',next:nextArr,
+        };
+      });
+      updateStats();buildCatList();buildLegend();buildOrgList();buildDashboard();
+      if(gmap) buildMarkers();
+      const el=document.getElementById('loadStatus');
+      if(el){el.textContent=ORGS.length+' orgs · '+new Date(data.lastUpdated).toLocaleDateString();el.style.color='var(--brand)';}
+    })
+    .catch(err=>{
+      console.error('Load failed:',err);
+      const el=document.getElementById('loadStatus');
+      if(el){el.textContent='⚠ Could not load live data';el.style.color='#C75000';}
+    });
+}
+function catIdFromLabel(label){
+  const map={'Food & Hunger':'food','Homeless/Housing':'homeless','Foster Care':'foster','Youth & Education':'youth','Health & Hospice':'health','Seniors':'seniors','Multi-service':'multi','Faith-based':'faith','Disability Services':'disability','Domestic Violence':'dv','Mental Health':'mental','Arts & Culture':'arts'};
+  return map[label]||'multi';
+}
+
+// ── GOOGLE MAP ───────────────────────────────────────────────
+let gmap,markers=[],popupOpen=false;
+
+function initMap(){
+  const isMobile=window.innerWidth<=768;
+  gmap=new google.maps.Map(document.getElementById('gmap'),{
+    center:{lat:33.370,lng:-111.860},zoom:isMobile?11:12,
+    mapTypeId:'roadmap',
+    mapTypeControl:!isMobile,
+    mapTypeControlOptions:{position:google.maps.ControlPosition.TOP_RIGHT},
+    streetViewControl:false,fullscreenControl:false,
+    zoomControl:false, // we use our own
+    gestureHandling:'greedy', // important for mobile single-finger pan
+    styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}],
+  });
+  gmap.addListener('click',()=>{if(popupOpen)closePopup();});
+  loadOrgsFromGitHub();
+}
+
+function catColor(id){return(CATS.find(c=>c.id===id)||{color:'#555'}).color;}
+function catLabel(id){return(CATS.find(c=>c.id===id)||{label:id}).label;}
+function catDtClass(id){return(CATS.find(c=>c.id===id)||{dtClass:'dt-multi'}).dtClass;}
+
+function makeMarkerIcon(org){
+  const col=catColor(org.cat),isT=org.status==='target';
+  const isMobile=window.innerWidth<=768;
+  const sz=isMobile?32:28; // bigger on mobile
+  const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${sz}' height='${sz}'>
+    ${isT
+      ?`<circle cx='${sz/2}' cy='${sz/2}' r='${sz/2-2}' fill='none' stroke='${col}' stroke-width='2' stroke-dasharray='3,2' opacity='0.7'/>
+        <circle cx='${sz/2}' cy='${sz/2}' r='${sz/2-6}' fill='white' stroke='${col}' stroke-width='2'/>
+        <text x='${sz/2}' y='${sz/2+5}' text-anchor='middle' font-size='${sz/2}' font-weight='bold' fill='${col}'>+</text>`
+      :`<circle cx='${sz/2}' cy='${sz/2}' r='${sz/2-2}' fill='${col}' stroke='white' stroke-width='2'/>
+        <circle cx='${sz/2}' cy='${sz/2}' r='${sz/4-1}' fill='white' opacity='0.4'/>`}
+  </svg>`;
+  return{url:'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),scaledSize:new google.maps.Size(sz,sz),anchor:new google.maps.Point(sz/2,sz/2)};
+}
+
+function buildMarkers(){
+  markers.forEach(m=>m.setMap(null));markers=[];
+  ORGS.filter(isVis).forEach(o=>{
+    const m=new google.maps.Marker({position:{lat:o.lat,lng:o.lng},map:gmap,title:o.name,icon:makeMarkerIcon(o)});
+    m.addListener('click',()=>openPopup(o,m));
+    markers.push(m);
+  });
+}
+
+// ── POPUP ─────────────────────────────────────────────────────
+function openPopup(o,marker){
+  const col=catColor(o.cat);
+  document.getElementById('ppStrip').style.background=col;
+  const svUrl=`https://maps.googleapis.com/maps/api/streetview?size=400x140&location=${o.lat},${o.lng}&fov=90&pitch=10&key=${API_KEY}`;
+  document.getElementById('ppSV').src=svUrl;
+  const logo=document.getElementById('ppLogo'),fb=document.getElementById('ppLogoFb');
+  if(o.domain){logo.src=`https://logo.clearbit.com/${o.domain}`;logo.style.display='block';fb.style.display='none';}
+  else{logo.style.display='none';fb.style.display='flex';fb.style.background=col;fb.textContent=o.name.charAt(0);}
+  document.getElementById('ppName').textContent=o.name;
+  document.getElementById('ppCity').innerHTML=`📍 ${o.city}, AZ`;
+  const sBg=o.status==='active'?'#E8F5E9':'#FFF8E1';
+  const sCol=o.status==='active'?'#1B5E20':'#C75000';
+  const sLbl=o.status==='active'?'✓ On JustServe':'⊕ Expansion Target';
+  document.getElementById('ppBadges').innerHTML=
+    `<span class="popup-badge" style="background:${sBg};color:${sCol}">${sLbl}</span>`+
+    `<span class="popup-badge" style="background:${col}18;color:${col}">${catLabel(o.cat)}</span>`+
+    (o.size?`<span class="popup-badge" style="background:#F3F4F6;color:#374151">${o.size}</span>`:'');
+
+  // Address
+  const ar=document.getElementById('ppAddrRow');
+  if(o.address){document.getElementById('ppAddr').innerHTML=`<a href="https://maps.google.com/?q=${encodeURIComponent(o.address)}" target="_blank" style="color:var(--brand)">${o.address}</a>`;ar.style.display='flex';}
+  else ar.style.display='none';
+  // Phone
+  const pr=document.getElementById('ppPhoneRow');
+  if(o.phone){document.getElementById('ppPhone').innerHTML=`<a href="tel:${o.phone}" style="color:var(--brand)">${o.phone}</a>`;pr.style.display='flex';}
+  else pr.style.display='none';
+  // Email
+  const er=document.getElementById('ppEmailRow');
+  if(o.email){document.getElementById('ppEmail').innerHTML=`<a href="mailto:${o.email}" style="color:var(--brand)">${o.email}</a>`;er.style.display='flex';}
+  else er.style.display='none';
+
+  document.getElementById('ppProj').textContent=o.proj>0?o.proj+'+ posted':'None posted yet';
+  document.getElementById('ppAdmin').textContent=o.admin||'No assigned admin';
+  document.getElementById('ppPri').innerHTML=`<span class="${o.pri==='High'?'pri-high':o.pri==='Medium'?'pri-med':'pri-low'}">${o.pri||'—'}</span>`;
+  document.getElementById('ppFaith').textContent=o.faith||'—';
+  document.getElementById('ppNote').innerHTML=(o.note||'').replace(/\n/g,'<br>');
+  const nextBox=document.getElementById('ppNextBox');
+  if(o.next&&o.next.length){document.getElementById('ppNext').innerHTML=o.next.map(s=>`<div class="next-item"><span style="color:${col};flex-shrink:0">▸</span><span>${s}</span></div>`).join('');nextBox.style.display='block';}
+  else nextBox.style.display='none';
+
+  const acts=[];
+  if(o.url) acts.push(`<a class="popup-btn pbtn-primary" href="${o.url}" target="_blank">Visit website →</a>`);
+  if(o.phone) acts.push(`<a class="popup-btn pbtn-secondary" href="tel:${o.phone}">📞 Call</a>`);
+  document.getElementById('ppActions').innerHTML=acts.join('');
+
+  // Position popup
+  const popup=document.getElementById('popup');
+  const isMobile=window.innerWidth<=768;
+  if(!isMobile){
+    // Desktop: position near marker
+    const mc=document.getElementById('gmap').getBoundingClientRect();
+    const maxH=Math.min(mc.height-20,620);
+    popup.style.maxHeight=maxH+'px';
+    const point=fromLatLngToPoint(o.lat,o.lng);
+    let left=point.x+22,top=point.y-120;
+    if(left+345>mc.width-10) left=point.x-355;
+    left=Math.max(10,Math.min(left,mc.width-345-10));
+    top=Math.max(10,Math.min(top,mc.height-maxH-10));
+    popup.style.left=left+'px';popup.style.top=top+'px';
+    popup.style.width='340px';popup.style.bottom='';popup.style.right='';
+  } else {
+    // Mobile: bottom sheet — CSS handles positioning
+    popup.style.maxHeight='70vh';
+    popup.style.width='';popup.style.left='';popup.style.top='';
+  }
+
+  popup.classList.add('visible');
+  popupOpen=true;
+  setTimeout(()=>{const b=popup.querySelector('.popup-body');if(b)b.scrollTop=0;},50);
+  // Pan map so popup doesn't cover the marker (mobile)
+  if(isMobile&&gmap){
+    gmap.panTo({lat:o.lat,lng:o.lng});
+    gmap.panBy(0,-80);
+  }
+}
+
+function fromLatLngToPoint(lat,lng){
+  const proj=gmap.getProjection(),bounds=gmap.getBounds();
+  if(!proj||!bounds)return{x:200,y:200};
+  const ne=bounds.getNorthEast(),sw=bounds.getSouthWest();
+  const p=proj.fromLatLngToPoint(new google.maps.LatLng(lat,lng));
+  const tl=proj.fromLatLngToPoint(new google.maps.LatLng(ne.lat(),sw.lng()));
+  const z=Math.pow(2,gmap.getZoom());
+  const mc=document.getElementById('gmap').getBoundingClientRect();
+  return{x:(p.x-tl.x)*z,y:(p.y-tl.y)*z};
+}
+
+window.closePopup=function(){document.getElementById('popup').classList.remove('visible');popupOpen=false;};
+window.handleLogoErr=function(){document.getElementById('ppLogo').style.display='none';document.getElementById('ppLogoFb').style.display='flex';};
+window.resetMap=function(){if(gmap){gmap.setCenter({lat:33.370,lng:-111.860});gmap.setZoom(window.innerWidth<=768?11:12);}};
+
+// ── SIDEBAR MOBILE ───────────────────────────────────────────
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebarOverlay');
+  const isOpen=sb.classList.contains('open');
+  if(isOpen){sb.classList.remove('open');ov.classList.remove('visible');}
+  else{sb.classList.add('open');ov.classList.add('visible');}
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('visible');
+}
+window.toggleSidebar=toggleSidebar;
+window.closeSidebar=closeSidebar;
+
+// Mobile legend toggle
+let mobileLegendVisible=false;
+window.toggleMobileLegend=function(){
+  const leg=document.querySelector('.map-legend');
+  mobileLegendVisible=!mobileLegendVisible;
+  leg.style.display=mobileLegendVisible?'block':'none';
+  document.getElementById('mbLegendBtn').classList.toggle('active-mb',mobileLegendVisible);
+};
+
+// ── CITY TOGGLES ─────────────────────────────────────────────
+const cityPolygons={};
+function buildCityPolygons(){
+  if(!gmap)return;
+  const cities=[
+    {name:'Mesa',color:'#185FA5',coords:[{lat:33.4870,lng:-111.7219},{lat:33.4936,lng:-111.7219},{lat:33.4936,lng:-111.9286},{lat:33.3553,lng:-111.9286},{lat:33.3553,lng:-111.7219}]},
+    {name:'Chandler',color:'#2E7D32',coords:[{lat:33.3680,lng:-111.7680},{lat:33.3680,lng:-112.0010},{lat:33.2460,lng:-112.0010},{lat:33.2460,lng:-111.7680}]},
+    {name:'Tempe',color:'#BF360C',coords:[{lat:33.4500,lng:-111.8700},{lat:33.4500,lng:-111.9500},{lat:33.3600,lng:-111.9500},{lat:33.3600,lng:-111.8700}]},
+    {name:'Gilbert',color:'#E65100',coords:[{lat:33.3900,lng:-111.6850},{lat:33.3900,lng:-111.8250},{lat:33.2600,lng:-111.8250},{lat:33.2600,lng:-111.6850}]},
+  ];
+  cities.forEach(c=>{
+    cityPolygons[c.name]=new google.maps.Polygon({
+      paths:c.coords,map:gmap,
+      strokeColor:c.color,strokeOpacity:.5,strokeWeight:2,
+      fillColor:c.color,fillOpacity:.04,
+    });
+  });
+}
+window.toggleCity=function(name,cb){
+  if(cityPolygons[name]) cityPolygons[name].setVisible(cb.checked);
+  // Sync both desktop and mobile checkboxes
+  ['cMesa','cMesa2','cChandler','cChandler2','cTempe','cTempe2','cGilbert','cGilbert2'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&el.id.replace('2','')===('c'+name)) el.checked=cb.checked;
+  });
+};
+
+// ── FILTERS ──────────────────────────────────────────────────
+let activeStatus='all',activeCats=new Set(CATS.map(c=>c.id)),srch='',selIdx=-1;
+function isVis(o){
+  const sOk=activeStatus==='all'||(activeStatus==='active'&&o.status==='active')||(activeStatus==='target'&&o.status==='target')||(activeStatus==='foster'&&o.cat==='foster');
+  return sOk&&activeCats.has(o.cat)&&(!srch||o.name.toLowerCase().includes(srch)||o.city.toLowerCase().includes(srch));
+}
+window.setStatus=function(btn){
+  activeStatus=btn.dataset.s;
+  document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  closePopup();buildOrgList();buildMarkers();
+};
+function buildCatList(){
+  const c=document.getElementById('catList');c.innerHTML='';
+  CATS.forEach(cat=>{
+    const cnt=ORGS.filter(o=>o.cat===cat.id).length;
+    if(!cnt)return;
+    const row=document.createElement('div');row.className='cat-row';
+    row.innerHTML=`<div class="cat-dot" style="background:${cat.color}"></div><span style="flex:1">${cat.label}</span><span class="cat-count">${cnt}</span>`;
+    let on=true;
+    row.addEventListener('click',()=>{
+      on=!on;
+      if(on){activeCats.add(cat.id);row.classList.remove('off');}
+      else{activeCats.delete(cat.id);row.classList.add('off');}
+      closePopup();buildOrgList();buildMarkers();
+    });
+    c.appendChild(row);
+  });
+}
+function buildLegend(){
+  document.getElementById('legendRows').innerHTML=CATS.filter(c=>ORGS.some(o=>o.cat===c.id)).map(c=>`<div class="legend-row"><div class="legend-dot" style="background:${c.color}"></div><span style="color:#6B6B6B">${c.label}</span></div>`).join('');
+}
+function buildOrgList(){
+  const vis=ORGS.filter(isVis);
+  document.getElementById('oCount').textContent=vis.length;
+  document.getElementById('orgList').innerHTML=vis.map(o=>{
+    const col=catColor(o.cat);
+    const tag=o.status==='active'?'<span class="tag tag-active">✓</span>':'<span class="tag tag-target">⊕</span>';
+    return `<div class="org-item" onclick="flyToOrg('${o.name.replace(/'/g,"\'")}')">
+      <div class="cat-dot" style="background:${col};margin-top:5px;flex-shrink:0"></div>
+      <div><div class="org-name">${o.name}</div>
+      <div class="org-meta">${tag}<span>${o.city}</span>${o.proj>0?`<span>${o.proj}p</span>`:''}<span class="${o.pri==='High'?'pri-high':o.pri==='Medium'?'pri-med':'pri-low'}">${o.pri}</span></div></div>
+    </div>`;
+  }).join('');
+}
+window.flyToOrg=function(name){
+  const o=ORGS.find(x=>x.name===name);if(!o)return;
+  gmap.panTo({lat:o.lat,lng:o.lng});
+  gmap.setZoom(16);
+  setTimeout(()=>openPopup(o,null),400);
+  closeSidebar();
+};
+
+function updateStats(){
+  document.getElementById('hA').textContent=ORGS.filter(o=>o.status==='active').length;
+  document.getElementById('hT').textContent=ORGS.filter(o=>o.status==='target').length;
+  document.getElementById('hF').textContent=ORGS.filter(o=>o.cat==='foster').length;
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+function buildDashboard(){
+  const active=ORGS.filter(o=>o.status==='active');
+  const targets=ORGS.filter(o=>o.status==='target');
+  const foster=ORGS.filter(o=>o.cat==='foster');
+
+  document.getElementById('dashMetrics').innerHTML=[
+    {val:ORGS.length,label:'Total organizations',sub:'Across 4 cities'},
+    {val:active.length,label:'Active on JustServe',sub:'Posting projects'},
+    {val:targets.length,label:'Expansion targets',sub:'Not yet registered'},
+    {val:foster.length,label:'Foster care orgs',sub:'DCS-connected'},
+  ].map(m=>`<div class="metric-card"><div class="metric-val">${m.val}</div><div class="metric-label">${m.label}</div><div class="metric-sub">${m.sub}</div></div>`).join('');
+
+  function makeTable(orgs){
+    return `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table class="dash-table">
+      <thead><tr>
+        <th>#</th><th>Organization</th><th class="col-hide">City</th>
+        <th>Category</th><th class="col-hide col-hide-sm">Faith</th>
+        <th class="col-hide">Admin</th><th>Proj</th>
+        <th>Score</th><th>Priority</th>
+        <th class="col-hide">Top Next Step</th>
+      </tr></thead>
+      <tbody>${orgs.sort((a,b)=>b.score-a.score).map((o,i)=>{
+        const col=catColor(o.cat),cc=CITY_COLORS[o.city]||'#555';
+        return `<tr onclick="switchToMap('${o.name.replace(/'/g,"\'")}')">
+          <td style="color:var(--muted);font-size:10px">${i+1}</td>
+          <td style="font-weight:600;font-size:11px">${o.name}</td>
+          <td class="col-hide"><span class="city-dot" style="background:${cc}"></span>${o.city}</td>
+          <td><span class="dash-tag ${catDtClass(o.cat)}">${catLabel(o.cat)}</span></td>
+          <td class="col-hide col-hide-sm" style="font-size:11px;color:var(--muted)">${o.faith||'—'}</td>
+          <td class="col-hide" style="font-size:11px;color:var(--muted)">${o.admin||'—'}</td>
+          <td style="font-size:11px">${o.proj>0?o.proj+'+':'—'}</td>
+          <td><div class="score-wrap"><strong style="font-size:11px">${o.score.toFixed(1)}</strong><div class="score-bar"><div class="score-fill" style="width:${Math.round(o.score/10*100)}%"></div></div></div></td>
+          <td><span class="${o.pri==='High'?'pri-high':o.pri==='Medium'?'pri-med':'pri-low'}">${o.pri}</span></td>
+          <td class="col-hide" style="font-size:11px;color:var(--muted)">${(o.next&&o.next[0])||'—'}</td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table></div>`;
+  }
+
+  document.getElementById('dashContent').innerHTML=`
+    <div class="dash-section">
+      <div class="dash-section-hdr">
+        <div class="dash-section-title">✅ Active Partners</div>
+        <span class="dash-section-badge" style="background:#E8F5E9;color:#1B5E20">${active.length} orgs</span>
+      </div>${makeTable(active)}</div>
+    <div class="dash-section">
+      <div class="dash-section-hdr">
+        <div class="dash-section-title">⊕ Expansion Targets</div>
+        <span class="dash-section-badge" style="background:#FFF8E1;color:#C75000">${targets.length} orgs</span>
+      </div>${makeTable(targets)}</div>
+    <div class="dash-section">
+      <div class="dash-section-hdr">
+        <div class="dash-section-title">❤ Foster Care</div>
+        <span class="dash-section-badge" style="background:#F3E5F5;color:#4A148C">${foster.length} orgs</span>
+      </div>${makeTable(foster)}</div>`;
+}
+
+// Tap dashboard row → switch to map and open popup
+window.switchToMap=function(name){
+  switchTab('map',document.querySelector('.tab-btn'));
+  setTimeout(()=>window.flyToOrg(name),300);
+};
+
+// ── TABS ──────────────────────────────────────────────────────
+window.switchTab=function(id,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  else document.querySelector(`[onclick*="${id}"]`).classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if(id==='map'&&gmap) google.maps.event.trigger(gmap,'resize');
+};
+
+// ── SEARCH ────────────────────────────────────────────────────
+document.getElementById('srch').addEventListener('input',e=>{
+  srch=e.target.value.toLowerCase().trim();
+  closePopup();buildOrgList();buildMarkers();
+});
+
+// ── INIT ──────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{
+  if(popupOpen) closePopup();
+  if(gmap) buildMarkers(); // resize marker icons for new screen size
+});
+</script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap"></script>
+</body>
+</html>
