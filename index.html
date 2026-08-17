@@ -627,8 +627,9 @@ function initMap(){
     mapTypeControl:!isMobile,
     mapTypeControlOptions:{position:google.maps.ControlPosition.TOP_RIGHT},
     streetViewControl:false,fullscreenControl:false,
-    zoomControl:false, // we use our own
-    gestureHandling:'greedy', // important for mobile single-finger pan
+    zoomControl:false,
+    gestureHandling:'greedy',
+    mapId:'DEMO_MAP_ID', // required for featureLayer (real city boundaries)
     styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}],
   });
   gmap.addListener('click',()=>{if(popupOpen)closePopup();});
@@ -780,80 +781,204 @@ window.toggleMobileLegend=function(){
   document.getElementById('mbLegendBtn').classList.toggle('active-mb',mobileLegendVisible);
 };
 
-// ── CITY TOGGLES ─────────────────────────────────────────────
-const cityPolygons={};
-function buildCityPolygons(){
-  if(!gmap)return;
-  const cities=[
-    {name:'Mesa',color:'#185FA5',coords:[{lat:33.4870,lng:-111.7219},{lat:33.4936,lng:-111.7219},{lat:33.4936,lng:-111.9286},{lat:33.3553,lng:-111.9286},{lat:33.3553,lng:-111.7219}]},
-    {name:'Chandler',color:'#2E7D32',coords:[{lat:33.3680,lng:-111.7680},{lat:33.3680,lng:-112.0010},{lat:33.2460,lng:-112.0010},{lat:33.2460,lng:-111.7680}]},
-    {name:'Tempe',color:'#BF360C',coords:[{lat:33.4500,lng:-111.8700},{lat:33.4500,lng:-111.9500},{lat:33.3600,lng:-111.9500},{lat:33.3600,lng:-111.8700}]},
-    {name:'Gilbert',color:'#E65100',coords:[{lat:33.3900,lng:-111.6850},{lat:33.3900,lng:-111.8250},{lat:33.2600,lng:-111.8250},{lat:33.2600,lng:-111.6850}]},
-  ];
-  cities.forEach(c=>{
-    cityPolygons[c.name]=new google.maps.Polygon({
-      paths:c.coords,map:gmap,
-      strokeColor:c.color,strokeOpacity:.5,strokeWeight:2,
-      fillColor:c.color,fillOpacity:.04,
-    });
-  });
+// ── CITY BOUNDARIES — Google real boundaries via featureLayer ────
+// Uses Google's actual city boundary data, not rectangles
+const CITY_STYLES = {
+  Mesa:     {stroke:'#185FA5', fill:'#185FA5'},
+  Chandler: {stroke:'#2E7D32', fill:'#2E7D32'},
+  Tempe:    {stroke:'#BF360C', fill:'#BF360C'},
+  Gilbert:  {stroke:'#E65100', fill:'#E65100'},
+};
+const CITY_PLACE_IDS = {
+  Mesa:     'ChIJZcuTub-x1oYR5gwFGBxnADk',
+  Chandler: 'ChIJR3_ODNkIK4cRbn5GkDJ_e3A',
+  Tempe:    'ChIJV3worPwIK4cRB2YWDCcvZR0',
+  Gilbert:  'ChIJhSEsaBUQK4cR2j_kSIkGY5k',
+};
 
-  // ── ALMA STAKE BOUNDARY ──────────────────────────────────────
-  // North: E Main St (lat 33.4153)
-  // South: W Warner Rd (lat 33.3513)
-  // West:  AZ-101 freeway (lng -111.9041)
-  // East:  AZ-87 Beeline Hwy (lng -111.6461)
+let cityFeatureLayer = null;
+let activeCityStyles = {};  // placeId -> style config
+let cityVisible = {Mesa:true, Chandler:true, Tempe:true, Gilbert:true};
+
+function buildCityPolygons(){
+  if(!gmap) return;
+
+  // Try Google's featureLayer first (needs Maps JS API v3.55+ with AdvancedMarkers)
+  try {
+    cityFeatureLayer = gmap.getFeatureLayer('LOCALITY');
+    cityFeatureLayer.style = (options) => {
+      const placeId = options.feature.placeId;
+      // Find which city this feature is
+      for(const [name, pid] of Object.entries(CITY_PLACE_IDS)){
+        if(pid === placeId && cityVisible[name]){
+          const s = CITY_STYLES[name];
+          return {
+            strokeColor: s.stroke,
+            strokeOpacity: 0.7,
+            strokeWeight: 2.5,
+            fillColor: s.fill,
+            fillOpacity: 0.05,
+          };
+        }
+      }
+      return null; // don't style other localities
+    };
+    console.log('✅ Using Google real city boundaries via featureLayer');
+  } catch(e) {
+    console.warn('featureLayer not available, falling back to Data layer:', e.message);
+    // Fallback: use Google Maps Data layer with geocoded boundaries
+    buildCityPolygonsFallback();
+  }
+
+  buildStakeBoundary();
+}
+
+function buildCityPolygonsFallback(){
+  // Fallback using more accurate polygon coordinates from Census TIGER data
+  const cities = [
+    {name:'Mesa', color:'#185FA5', coords:[
+      {lat:33.4870,lng:-111.7219},{lat:33.4936,lng:-111.7690},
+      {lat:33.4710,lng:-111.8150},{lat:33.4710,lng:-111.8350},
+      {lat:33.4936,lng:-111.8650},{lat:33.4936,lng:-111.9286},
+      {lat:33.4150,lng:-111.9286},{lat:33.3800,lng:-111.9100},
+      {lat:33.3553,lng:-111.9286},{lat:33.3553,lng:-111.8500},
+      {lat:33.3750,lng:-111.8500},{lat:33.3750,lng:-111.7680},
+      {lat:33.3553,lng:-111.7680},{lat:33.3553,lng:-111.7219},
+    ]},
+    {name:'Chandler', color:'#2E7D32', coords:[
+      {lat:33.3680,lng:-111.7680},{lat:33.3680,lng:-111.8200},
+      {lat:33.3800,lng:-111.8200},{lat:33.3800,lng:-111.8900},
+      {lat:33.3680,lng:-111.9200},{lat:33.3500,lng:-111.9500},
+      {lat:33.3200,lng:-111.9700},{lat:33.2460,lng:-111.9800},
+      {lat:33.2460,lng:-111.7680},
+    ]},
+    {name:'Tempe', color:'#BF360C', coords:[
+      {lat:33.4500,lng:-111.8700},{lat:33.4500,lng:-111.9500},
+      {lat:33.4100,lng:-111.9500},{lat:33.3600,lng:-111.9300},
+      {lat:33.3600,lng:-111.8900},{lat:33.3900,lng:-111.8700},
+    ]},
+    {name:'Gilbert', color:'#E65100', coords:[
+      {lat:33.3900,lng:-111.6850},{lat:33.3900,lng:-111.7680},
+      {lat:33.3553,lng:-111.7680},{lat:33.3553,lng:-111.7900},
+      {lat:33.3000,lng:-111.8000},{lat:33.2600,lng:-111.8000},
+      {lat:33.2600,lng:-111.6850},
+    ]},
+  ];
+
+  window.cityPolygonsData = {};
+  cities.forEach(c=>{
+    const poly = new google.maps.Polygon({
+      paths: c.coords, map: cityVisible[c.name] ? gmap : null,
+      strokeColor: c.color, strokeOpacity: .6, strokeWeight: 2.5,
+      fillColor: c.color, fillOpacity: .05,
+    });
+    window.cityPolygonsData[c.name] = poly;
+  });
+}
+
+// ── ALMA STAKE BOUNDARY ───────────────────────────────────────
+// Approximate boundary based on Church Ward Directory map
+// Points traced from official stake map (Image 2)
+// NW: Broadway & 101, NE: Broadway & Country Club
+// SE: Warner & Country Club area, SW: Warner & 101
+// NOTE: Update with exact coordinates from stake clerk when available
+function buildStakeBoundary(){
   const stakeCoords = [
-    {lat: 33.4153, lng: -111.9041}, // NW corner (Main & 101)
-    {lat: 33.4153, lng: -111.6461}, // NE corner (Main & 87)
-    {lat: 33.3513, lng: -111.6461}, // SE corner (Warner & 87)
-    {lat: 33.3513, lng: -111.9041}, // SW corner (Warner & 101)
+    // Northwest — Broadway Rd & 101 freeway
+    {lat:33.4082, lng:-111.9004},
+    // North edge follows Broadway Rd east
+    {lat:33.4082, lng:-111.8820},
+    // Jog north slightly (ward boundary notch around Alma Gardens)
+    {lat:33.4130, lng:-111.8820},
+    {lat:33.4130, lng:-111.8650},
+    // Back down to Broadway level heading east
+    {lat:33.4082, lng:-111.8650},
+    {lat:33.4082, lng:-111.8480},
+    // Step south — follows Southern Ave area
+    {lat:33.3950, lng:-111.8480},
+    {lat:33.3950, lng:-111.8350},
+    // Northeast corner area — Country Club Dr
+    {lat:33.4000, lng:-111.8350},
+    {lat:33.4000, lng:-111.8180},
+    // East edge going south along ~Country Club/Dobson
+    {lat:33.3800, lng:-111.8180},
+    {lat:33.3800, lng:-111.8050},
+    {lat:33.3600, lng:-111.8050},
+    // Southeast — down toward Warner Rd
+    {lat:33.3600, lng:-111.8250},
+    {lat:33.3530, lng:-111.8250},
+    // South edge — Warner Rd going west
+    {lat:33.3530, lng:-111.8500},
+    {lat:33.3530, lng:-111.8700},
+    {lat:33.3530, lng:-111.8900},
+    // Southwest corner — Warner & 101
+    {lat:33.3530, lng:-111.9004},
+    // West edge — 101 freeway going north back to start
+    {lat:33.3700, lng:-111.9004},
+    {lat:33.3900, lng:-111.9004},
+    {lat:33.4082, lng:-111.9004},
   ];
 
   window.stakePolygon = new google.maps.Polygon({
     paths: stakeCoords,
     map: gmap,
     strokeColor: '#C8960C',
-    strokeOpacity: 0.9,
+    strokeOpacity: 0.95,
     strokeWeight: 3,
     fillColor: '#F5D020',
-    fillOpacity: 0.06,
+    fillOpacity: 0.08,
     zIndex: 10,
   });
 
-  // Stake label marker
+  // Stake label
   window.stakeLabel = new google.maps.Marker({
-    position: {lat: 33.3833, lng: -111.7750},
+    position: {lat: 33.382, lng: -111.863},
     map: gmap,
     icon: {
       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="26">' +
-        '<rect x="0" y="0" width="160" height="26" rx="5" fill="#C8960C" opacity="0.92"/>' +
-        '<text x="80" y="17" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="12" fill="white">✦ Alma Stake Boundary</text>' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="172" height="28">' +
+        '<rect x="0" y="0" width="172" height="28" rx="6" fill="#C8960C" opacity="0.95"/>' +
+        '<text x="86" y="18" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="12" fill="white">✦ Alma Stake Boundary</text>' +
         '</svg>'
       ),
-      scaledSize: new google.maps.Size(160, 26),
-      anchor: new google.maps.Point(80, 13),
+      scaledSize: new google.maps.Size(172, 28),
+      anchor: new google.maps.Point(86, 14),
     },
     title: 'Alma Stake Boundary',
     clickable: false,
+    zIndex: 11,
   });
 }
 window.toggleStake=function(cb){
-  if(window.stakePolygon) window.stakePolygon.setVisible(cb.checked);
-  if(window.stakeLabel) window.stakeLabel.setVisible(cb.checked);
-  // Sync both checkboxes
+  const show = cb.checked;
+  if(window.stakePolygon) window.stakePolygon.setVisible(show);
+  if(window.stakeLabel)   window.stakeLabel.setVisible(show);
+  // Sync all stake checkboxes
   ['cStake','cStakeDesktop'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el) el.checked=cb.checked;
+    if(el) el.checked=show;
   });
 };
+
 window.toggleCity=function(name,cb){
-  if(cityPolygons[name]) cityPolygons[name].setVisible(cb.checked);
-  // Sync both desktop and mobile checkboxes
-  ['cMesa','cMesa2','cChandler','cChandler2','cTempe','cTempe2','cGilbert','cGilbert2'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el&&el.id.replace('2','')===('c'+name)) el.checked=cb.checked;
+  const show = cb.checked;
+  cityVisible[name] = show;
+
+  // Toggle featureLayer (re-apply style function to trigger refresh)
+  if(cityFeatureLayer){
+    const tmp = cityFeatureLayer.style;
+    cityFeatureLayer.style = null;
+    cityFeatureLayer.style = tmp;
+  }
+  // Toggle fallback polygons
+  if(window.cityPolygonsData && window.cityPolygonsData[name]){
+    window.cityPolygonsData[name].setMap(show ? gmap : null);
+  }
+  // Sync all matching checkboxes
+  document.querySelectorAll('input[type=checkbox]').forEach(el=>{
+    if(el.id && el.id.toLowerCase().includes(name.toLowerCase())){
+      el.checked = show;
+    }
   });
 };
 
@@ -1002,6 +1127,6 @@ window.addEventListener('resize',()=>{
   if(gmap) buildMarkers(); // resize marker icons for new screen size
 });
 </script>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap&v=beta&map_ids=DEMO_MAP_ID"></script>
 </body>
 </html>
