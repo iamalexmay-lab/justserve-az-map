@@ -571,14 +571,26 @@ const geocodeCache = {};
 
 // Use Maps JS API Geocoder (works with existing key, no extra API needed)
 let _geocoder = null;
-function getGeocoder(){ if(!_geocoder) _geocoder = new google.maps.Geocoder(); return _geocoder; }
+function getGeocoder(){
+  // Only create geocoder after Maps API is loaded
+  if(!_geocoder && typeof google !== 'undefined' && google.maps && google.maps.Geocoder){
+    _geocoder = new google.maps.Geocoder();
+  }
+  return _geocoder;
+}
 
 function geocodeAddress(address) {
   if(!address || address.length < 10) return Promise.resolve(null);
   if(geocodeCache[address]) return Promise.resolve(geocodeCache[address]);
   
+  const geocoder = getGeocoder();
+  if(!geocoder) {
+    console.warn('Geocoder not ready yet for:', address);
+    return Promise.resolve(null);
+  }
+  
   return new Promise(resolve => {
-    getGeocoder().geocode({address}, (results, status) => {
+    geocoder.geocode({address}, (results, status) => {
       if(status === 'OK' && results[0]) {
         const loc = results[0].geometry.location;
         const coords = {lat: loc.lat(), lng: loc.lng()};
@@ -726,7 +738,10 @@ function initMap(){
   });
   gmap.addListener('click',()=>{if(popupOpen)closePopup();});
   buildCityPolygons();
-  loadOrgsFromGitHub();
+  // Initialize geocoder now that gmap is ready
+  _geocoder = new google.maps.Geocoder();
+  // Small delay to ensure map is fully rendered before geocoding starts
+  setTimeout(loadOrgsFromGitHub, 300);
 }
 
 function catColor(id){return(CATS.find(c=>c.id===id)||{color:'#555'}).color;}
@@ -907,45 +922,53 @@ function buildCityPolygons(){
 }
 
 function buildCityPolygonsFallback(){
-  // Fallback using more accurate polygon coordinates from Census TIGER data
-  const cities = [
-    {name:'Mesa', color:'#185FA5', coords:[
-      {lat:33.4870,lng:-111.7219},{lat:33.4936,lng:-111.7690},
-      {lat:33.4710,lng:-111.8150},{lat:33.4710,lng:-111.8350},
-      {lat:33.4936,lng:-111.8650},{lat:33.4936,lng:-111.9286},
-      {lat:33.4150,lng:-111.9286},{lat:33.3800,lng:-111.9100},
-      {lat:33.3553,lng:-111.9286},{lat:33.3553,lng:-111.8500},
-      {lat:33.3750,lng:-111.8500},{lat:33.3750,lng:-111.7680},
-      {lat:33.3553,lng:-111.7680},{lat:33.3553,lng:-111.7219},
-    ]},
-    {name:'Chandler', color:'#2E7D32', coords:[
-      {lat:33.3680,lng:-111.7680},{lat:33.3680,lng:-111.8200},
-      {lat:33.3800,lng:-111.8200},{lat:33.3800,lng:-111.8900},
-      {lat:33.3680,lng:-111.9200},{lat:33.3500,lng:-111.9500},
-      {lat:33.3200,lng:-111.9700},{lat:33.2460,lng:-111.9800},
-      {lat:33.2460,lng:-111.7680},
-    ]},
-    {name:'Tempe', color:'#BF360C', coords:[
-      {lat:33.4500,lng:-111.8700},{lat:33.4500,lng:-111.9500},
-      {lat:33.4100,lng:-111.9500},{lat:33.3600,lng:-111.9300},
-      {lat:33.3600,lng:-111.8900},{lat:33.3900,lng:-111.8700},
-    ]},
-    {name:'Gilbert', color:'#E65100', coords:[
-      {lat:33.3900,lng:-111.6850},{lat:33.3900,lng:-111.7680},
-      {lat:33.3553,lng:-111.7680},{lat:33.3553,lng:-111.7900},
-      {lat:33.3000,lng:-111.8000},{lat:33.2600,lng:-111.8000},
-      {lat:33.2600,lng:-111.6850},
-    ]},
+  // Use Google Maps Geocoder to get real city boundary boxes
+  // Then draw accurate outlines using the viewport bounds from geocoding
+  const cityConfigs = [
+    {name:'Mesa',     color:'#185FA5'},
+    {name:'Chandler', color:'#2E7D32'},
+    {name:'Tempe',    color:'#BF360C'},
+    {name:'Gilbert',  color:'#E65100'},
   ];
 
   window.cityPolygonsData = {};
-  cities.forEach(c=>{
-    const poly = new google.maps.Polygon({
-      paths: c.coords, map: cityVisible[c.name] ? gmap : null,
-      strokeColor: c.color, strokeOpacity: .6, strokeWeight: 2.5,
-      fillColor: c.color, fillOpacity: .05,
+
+  cityConfigs.forEach(c => {
+    // Geocode each city to get its real bounding box from Google
+    getGeocoder().geocode({address: c.name + ', AZ, USA'}, (results, status) => {
+      if(status !== 'OK' || !results[0]) {
+        console.warn('City geocode failed:', c.name, status);
+        return;
+      }
+      
+      const vp = results[0].geometry.viewport;
+      const sw = vp.getSouthWest();
+      const ne = vp.getNorthEast();
+      
+      // Build polygon from the real city viewport bounds
+      const coords = [
+        {lat: ne.lat(), lng: sw.lng()}, // NW
+        {lat: ne.lat(), lng: ne.lng()}, // NE
+        {lat: sw.lat(), lng: ne.lng()}, // SE
+        {lat: sw.lat(), lng: sw.lng()}, // SW
+      ];
+
+      console.log(c.name + ' bounds:', sw.lat().toFixed(4), sw.lng().toFixed(4), 
+                  'to', ne.lat().toFixed(4), ne.lng().toFixed(4));
+
+      const poly = new google.maps.Polygon({
+        paths: coords,
+        map: cityVisible[c.name] ? gmap : null,
+        strokeColor: c.color,
+        strokeOpacity: 0.7,
+        strokeWeight: 2.5,
+        fillColor: c.color,
+        fillOpacity: 0.04,
+        zIndex: 1,
+      });
+
+      window.cityPolygonsData[c.name] = poly;
     });
-    window.cityPolygonsData[c.name] = poly;
   });
 }
 
@@ -1010,14 +1033,7 @@ window.toggleStake=function(cb){
 window.toggleCity=function(name,cb){
   const show = cb.checked;
   cityVisible[name] = show;
-
-  // Toggle featureLayer (re-apply style function to trigger refresh)
-  if(cityFeatureLayer){
-    const tmp = cityFeatureLayer.style;
-    cityFeatureLayer.style = null;
-    cityFeatureLayer.style = tmp;
-  }
-  // Toggle fallback polygons
+  // Toggle polygon if it exists (may still be loading)
   if(window.cityPolygonsData && window.cityPolygonsData[name]){
     window.cityPolygonsData[name].setMap(show ? gmap : null);
   }
