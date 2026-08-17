@@ -969,7 +969,7 @@
     {
       "id": 43,
       "name": "Alex May",
-      "status": "",
+      "status": "Target",
       "category": "",
       "city": "",
       "address": "",
@@ -1013,9 +1013,9 @@
       "lastUpdated": ""
     }
   ],
-  "lastUpdated": "2026-08-17T03:54:07.516Z",
+  "lastUpdated": "2026-08-17T03:54:09.736Z",
   "totalOrgs": 44,
   "activeCount": 30,
-  "targetCount": 13,
+  "targetCount": 14,
   "fosterCount": 5
 }
