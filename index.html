@@ -727,26 +727,37 @@ function catIdFromLabel(label){
 // ── GOOGLE MAP ───────────────────────────────────────────────
 let gmap,markers=[],popupOpen=false;
 
-function initMap(){
-  const isMobile=window.innerWidth<=768;
-  gmap=new google.maps.Map(document.getElementById('gmap'),{
-    center:{lat:33.370,lng:-111.860},zoom:isMobile?11:12,
-    mapTypeId:'roadmap',
-    mapTypeControl:!isMobile,
-    mapTypeControlOptions:{position:google.maps.ControlPosition.TOP_RIGHT},
-    streetViewControl:false,fullscreenControl:false,
-    zoomControl:false,
-    gestureHandling:'greedy',
-    styles:[
-      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
-      {featureType:'transit',elementType:'labels',stylers:[{visibility:'off'}]},
-    ],
+async function initMap(){
+  const isMobile = window.innerWidth <= 768;
+  // Load required libraries using modern API
+  const [{ Map }, { AdvancedMarkerElement, PinElement }] = await Promise.all([
+    google.maps.importLibrary('maps'),
+    google.maps.importLibrary('marker'),
+  ]);
+  window._AdvancedMarkerElement = AdvancedMarkerElement;
+  window._PinElement = PinElement;
+
+  gmap = new Map(document.getElementById('gmap'), {
+    center: {lat: 33.370, lng: -111.860},
+    zoom: isMobile ? 11 : 12,
+    mapId: '84ff702491f5c89cda6d3b7e',
+    mapTypeControl: !isMobile,
+    mapTypeControlOptions: {position: google.maps.ControlPosition.TOP_RIGHT},
+    streetViewControl: false,
+    fullscreenControl: false,
+    zoomControl: false,
+    gestureHandling: 'greedy',
   });
-  gmap.addListener('click',()=>{if(popupOpen)closePopup();});
-  buildCityPolygons();
-  // Initialize geocoder now that gmap is ready
+
+  gmap.addListener('click', ()=>{ if(popupOpen) closePopup(); });
+  
+  // Initialize geocoder
   _geocoder = new google.maps.Geocoder();
-  // Small delay to ensure map is fully rendered before geocoding starts
+  
+  // Build city boundaries using FeatureLayer (real Google data)
+  buildCityBoundaries();
+  
+  // Load org data
   setTimeout(loadOrgsFromGitHub, 300);
 }
 
@@ -754,27 +765,64 @@ function catColor(id){return(CATS.find(c=>c.id===id)||{color:'#555'}).color;}
 function catLabel(id){return(CATS.find(c=>c.id===id)||{label:id}).label;}
 function catDtClass(id){return(CATS.find(c=>c.id===id)||{dtClass:'dt-multi'}).dtClass;}
 
-function makeMarkerIcon(org){
-  const col=catColor(org.cat),isT=org.status==='target';
-  const isMobile=window.innerWidth<=768;
-  const sz=isMobile?32:28; // bigger on mobile
-  const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='${sz}' height='${sz}'>
-    ${isT
-      ?`<circle cx='${sz/2}' cy='${sz/2}' r='${sz/2-2}' fill='none' stroke='${col}' stroke-width='2' stroke-dasharray='3,2' opacity='0.7'/>
-        <circle cx='${sz/2}' cy='${sz/2}' r='${sz/2-6}' fill='white' stroke='${col}' stroke-width='2'/>
-        <text x='${sz/2}' y='${sz/2+5}' text-anchor='middle' font-size='${sz/2}' font-weight='bold' fill='${col}'>+</text>`
-      :`<circle cx='${sz/2}' cy='${sz/2}' r='${sz/2-2}' fill='${col}' stroke='white' stroke-width='2'/>
-        <circle cx='${sz/2}' cy='${sz/2}' r='${sz/4-1}' fill='white' opacity='0.4'/>`}
-  </svg>`;
-  return{url:'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),scaledSize:new google.maps.Size(sz,sz),anchor:new google.maps.Point(sz/2,sz/2)};
+function makeMarkerElement(org) {
+  const col = catColor(org.cat);
+  const isT = org.status === 'target';
+  const isMobile = window.innerWidth <= 768;
+  const sz = isMobile ? 32 : 26;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', sz);
+  svg.setAttribute('height', sz);
+  svg.setAttribute('viewBox', `0 0 ${sz} ${sz}`);
+
+  if(isT) {
+    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    ring.setAttribute('cx', sz/2); ring.setAttribute('cy', sz/2);
+    ring.setAttribute('r', sz/2-2); ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', col); ring.setAttribute('stroke-width', '2');
+    ring.setAttribute('stroke-dasharray', '3,2'); ring.setAttribute('opacity', '0.7');
+    svg.appendChild(ring);
+    const inner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    inner.setAttribute('cx', sz/2); inner.setAttribute('cy', sz/2);
+    inner.setAttribute('r', sz/2-6); inner.setAttribute('fill', 'white');
+    inner.setAttribute('stroke', col); inner.setAttribute('stroke-width', '2');
+    svg.appendChild(inner);
+    const plus = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    plus.setAttribute('x', sz/2); plus.setAttribute('y', sz/2+5);
+    plus.setAttribute('text-anchor', 'middle'); plus.setAttribute('font-size', sz/2);
+    plus.setAttribute('font-weight', 'bold'); plus.setAttribute('fill', col);
+    plus.textContent = '+';
+    svg.appendChild(plus);
+  } else {
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', sz/2); circle.setAttribute('cy', sz/2);
+    circle.setAttribute('r', sz/2-2); circle.setAttribute('fill', col);
+    circle.setAttribute('stroke', 'white'); circle.setAttribute('stroke-width', '2');
+    svg.appendChild(circle);
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', sz/2); dot.setAttribute('cy', sz/2);
+    dot.setAttribute('r', sz/4-1); dot.setAttribute('fill', 'white');
+    dot.setAttribute('opacity', '0.4');
+    svg.appendChild(dot);
+  }
+  return svg;
 }
 
 function buildMarkers(){
-  markers.forEach(m=>m.setMap(null));markers=[];
-  ORGS.filter(isVis).forEach(o=>{
-    if(!o.mappable) return; // skip orgs without verified addresses
-    const m=new google.maps.Marker({position:{lat:o.lat,lng:o.lng},map:gmap,title:o.name,icon:makeMarkerIcon(o)});
-    m.addListener('click',()=>openPopup(o,m));
+  markers.forEach(m => m.map = null); markers = [];
+  const AME = window._AdvancedMarkerElement;
+  if(!AME){ console.warn('AdvancedMarkerElement not loaded yet'); return; }
+  
+  ORGS.filter(isVis).forEach(o => {
+    if(!o.mappable) return;
+    const m = new AME({
+      position: {lat: o.lat, lng: o.lng},
+      map: gmap,
+      title: o.name,
+      content: makeMarkerElement(o),
+    });
+    m.addListener('click', () => openPopup(o, m));
     markers.push(m);
   });
 }
@@ -862,14 +910,17 @@ function openPopup(o,marker){
 }
 
 function fromLatLngToPoint(lat,lng){
-  const proj=gmap.getProjection(),bounds=gmap.getBounds();
-  if(!proj||!bounds)return{x:200,y:200};
-  const ne=bounds.getNorthEast(),sw=bounds.getSouthWest();
-  const p=proj.fromLatLngToPoint(new google.maps.LatLng(lat,lng));
-  const tl=proj.fromLatLngToPoint(new google.maps.LatLng(ne.lat(),sw.lng()));
-  const z=Math.pow(2,gmap.getZoom());
-  const mc=document.getElementById('gmap').getBoundingClientRect();
-  return{x:(p.x-tl.x)*z,y:(p.y-tl.y)*z};
+  try {
+    const proj=gmap.getProjection(),bounds=gmap.getBounds();
+    if(!proj||!bounds) return{x:200,y:200};
+    const ne=bounds.getNorthEast(),sw=bounds.getSouthWest();
+    const p=proj.fromLatLngToPoint(new google.maps.LatLng(lat,lng));
+    const tl=proj.fromLatLngToPoint(new google.maps.LatLng(ne.lat(),sw.lng()));
+    const z=Math.pow(2,gmap.getZoom());
+    return{x:(p.x-tl.x)*z,y:(p.y-tl.y)*z};
+  } catch(e) {
+    return{x:200,y:200};
+  }
 }
 
 window.closePopup=function(){document.getElementById('popup').classList.remove('visible');popupOpen=false;};
@@ -919,11 +970,48 @@ let cityFeatureLayer = null;
 let activeCityStyles = {};  // placeId -> style config
 let cityVisible = {Mesa:true, Chandler:true, Tempe:true, Gilbert:true};
 
-function buildCityPolygons(){
+function buildCityBoundaries(){
   if(!gmap) return;
-  // Use Google Maps Data layer with real city boundary GeoJSON from Geocoding
-  // This uses the Maps JS Geocoder to get actual city boundaries
-  buildCityPolygonsFallback();
+  
+  // Use FeatureLayer with data-driven styling for REAL city boundaries
+  // This requires a Vector Map ID (which we now have)
+  try {
+    const localityLayer = gmap.getFeatureLayer(google.maps.FeatureType.LOCALITY);
+    
+    const CITY_STYLES = {
+      'Mesa':     {stroke:'#185FA5', fill:'#185FA5'},
+      'Chandler': {stroke:'#2E7D32', fill:'#2E7D32'},
+      'Tempe':    {stroke:'#BF360C', fill:'#BF360C'},
+      'Gilbert':  {stroke:'#E65100', fill:'#E65100'},
+    };
+    // Place IDs for each city (verified)
+    const CITY_PLACE_IDS = {
+      'ChIJZcuTub-x1oYR5gwFGBxnADk': 'Mesa',
+      'ChIJR3_ODNkIK4cRbn5GkDJ_e3A': 'Chandler',
+      'ChIJV3worPwIK4cRB2YWDCcvZR0': 'Tempe',
+      'ChIJhSEsaBUQK4cR2j_kSIkGY5k': 'Gilbert',
+    };
+
+    localityLayer.style = (options) => {
+      const cityName = CITY_PLACE_IDS[options.feature.placeId];
+      if(cityName && cityVisible[cityName]) {
+        const s = CITY_STYLES[cityName];
+        return {
+          strokeColor: s.stroke,
+          strokeOpacity: 0.8,
+          strokeWeight: 2.5,
+          fillColor: s.fill,
+          fillOpacity: 0.05,
+        };
+      }
+      return null;
+    };
+    window._localityLayer = localityLayer;
+    console.log('✅ Real city boundaries via FeatureLayer');
+  } catch(e) {
+    console.warn('FeatureLayer failed, using geocoded fallback:', e.message);
+    buildCityPolygonsFallback();
+  }
   buildStakeBoundary();
 }
 
@@ -1006,24 +1094,20 @@ function buildStakeBoundary(){
     zIndex: 10,
   });
 
-  // Stake label
-  window.stakeLabel = new google.maps.Marker({
-    position: {lat: 33.3750903, lng: -111.866375}, // exact center of stake boundary
-    map: gmap,
-    icon: {
-      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="172" height="28">' +
-        '<rect x="0" y="0" width="172" height="28" rx="6" fill="#C8960C" opacity="0.95"/>' +
-        '<text x="86" y="18" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="12" fill="white">✦ Alma Stake Boundary</text>' +
-        '</svg>'
-      ),
-      scaledSize: new google.maps.Size(172, 28),
-      anchor: new google.maps.Point(86, 14),
-    },
-    title: 'Alma Stake Boundary',
-    clickable: false,
-    zIndex: 11,
-  });
+  // Stake label using AdvancedMarkerElement
+  const stakeLabelEl = document.createElement('div');
+  stakeLabelEl.style.cssText = 'background:#C8960C;color:white;font-family:Arial,sans-serif;font-weight:bold;font-size:12px;padding:5px 12px;border-radius:6px;opacity:0.95;white-space:nowrap;pointer-events:none;';
+  stakeLabelEl.textContent = '✦ Alma Stake Boundary';
+  const AME = window._AdvancedMarkerElement;
+  if(AME) {
+    window.stakeLabel = new AME({
+      position: {lat: 33.3750903, lng: -111.866375},
+      map: gmap,
+      content: stakeLabelEl,
+      title: 'Alma Stake Boundary',
+      zIndex: 11,
+    });
+  }
 }
 window.toggleStake=function(cb){
   const show = cb.checked;
@@ -1039,11 +1123,18 @@ window.toggleStake=function(cb){
 window.toggleCity=function(name,cb){
   const show = cb.checked;
   cityVisible[name] = show;
-  // Toggle polygon if it exists (may still be loading)
+
+  // Refresh FeatureLayer style
+  if(window._localityLayer){
+    const s = window._localityLayer.style;
+    window._localityLayer.style = null;
+    window._localityLayer.style = s;
+  }
+  // Fallback polygons
   if(window.cityPolygonsData && window.cityPolygonsData[name]){
     window.cityPolygonsData[name].setMap(show ? gmap : null);
   }
-  // Sync all matching checkboxes
+  // Sync all checkboxes
   document.querySelectorAll('input[type=checkbox]').forEach(el=>{
     if(el.id && el.id.toLowerCase().includes(name.toLowerCase())){
       el.checked = show;
@@ -1237,6 +1328,6 @@ window.addEventListener('resize',()=>{
   if(gmap) buildMarkers(); // resize marker icons for new screen size
 });
 </script>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap&libraries=places"></script>
+<script>(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.googleapis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({"key":"AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM","v":"beta","mapId":"84ff702491f5c89cda6d3b7e"});</script>
 </body>
 </html>
