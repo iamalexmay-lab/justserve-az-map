@@ -1328,6 +1328,20 @@ window.addEventListener('resize',()=>{
   if(gmap) buildMarkers(); // resize marker icons for new screen size
 });
 </script>
-<script>(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.googleapis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({"key":"AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM","v":"beta","mapId":"84ff702491f5c89cda6d3b7e"});</script>
+<script>
+// Load Google Maps with modern features enabled
+function loadGoogleMaps() {
+  var script = document.createElement('script');
+  script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCY4EA1BsEnxJD1OvXuQGgs9B-zn6dI3UM&callback=initMap&v=beta&libraries=marker&map_ids=84ff702491f5c89cda6d3b7e';
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadGoogleMaps);
+} else {
+  loadGoogleMaps();
+}
+</script>
 </body>
 </html>
