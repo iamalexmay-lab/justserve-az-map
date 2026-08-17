@@ -797,7 +797,57 @@ function buildCityPolygons(){
       fillColor:c.color,fillOpacity:.04,
     });
   });
+
+  // ── ALMA STAKE BOUNDARY ──────────────────────────────────────
+  // North: E Main St (lat 33.4153)
+  // South: W Warner Rd (lat 33.3513)
+  // West:  AZ-101 freeway (lng -111.9041)
+  // East:  AZ-87 Beeline Hwy (lng -111.6461)
+  const stakeCoords = [
+    {lat: 33.4153, lng: -111.9041}, // NW corner (Main & 101)
+    {lat: 33.4153, lng: -111.6461}, // NE corner (Main & 87)
+    {lat: 33.3513, lng: -111.6461}, // SE corner (Warner & 87)
+    {lat: 33.3513, lng: -111.9041}, // SW corner (Warner & 101)
+  ];
+
+  window.stakePolygon = new google.maps.Polygon({
+    paths: stakeCoords,
+    map: gmap,
+    strokeColor: '#C8960C',
+    strokeOpacity: 0.9,
+    strokeWeight: 3,
+    fillColor: '#F5D020',
+    fillOpacity: 0.06,
+    zIndex: 10,
+  });
+
+  // Stake label marker
+  window.stakeLabel = new google.maps.Marker({
+    position: {lat: 33.3833, lng: -111.7750},
+    map: gmap,
+    icon: {
+      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="26">' +
+        '<rect x="0" y="0" width="160" height="26" rx="5" fill="#C8960C" opacity="0.92"/>' +
+        '<text x="80" y="17" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="12" fill="white">✦ Alma Stake Boundary</text>' +
+        '</svg>'
+      ),
+      scaledSize: new google.maps.Size(160, 26),
+      anchor: new google.maps.Point(80, 13),
+    },
+    title: 'Alma Stake Boundary',
+    clickable: false,
+  });
 }
+window.toggleStake=function(cb){
+  if(window.stakePolygon) window.stakePolygon.setVisible(cb.checked);
+  if(window.stakeLabel) window.stakeLabel.setVisible(cb.checked);
+  // Sync both checkboxes
+  ['cStake','cStakeDesktop'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.checked=cb.checked;
+  });
+};
 window.toggleCity=function(name,cb){
   if(cityPolygons[name]) cityPolygons[name].setVisible(cb.checked);
   // Sync both desktop and mobile checkboxes
